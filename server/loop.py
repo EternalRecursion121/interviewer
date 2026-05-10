@@ -20,7 +20,6 @@ from config import (
     ANTHROPIC_API_KEY,
     MAX_TOKENS_PER_TURN,
     MAX_TOOL_TURNS,
-    MODEL_DEEP,
     MODEL_DEFAULT,
     PROMPTS_DIR,
     WIKI_DIR,
@@ -179,6 +178,74 @@ def _wrap_user_message(session: Session, text: str, is_first: bool) -> dict:
         )
     parts.append(f"<participant>{safe}</participant>")
     return {"role": "user", "content": "\n".join(parts)}
+
+
+# The opening-turn instruction is long because it has to override several
+# default model behaviors at once (don't ask substantive questions yet, do
+# explain the format, do offer a ballpark time, do invite questions).
+# Used by both the streaming and non-streaming opening paths.
+_OPENING_INSTRUCTION = (
+    "<system_event>The participant has just connected. No message yet. "
+    "Compose your opening turn — short, warm, real. "
+    "**Briefly explain what this is**, then ask how long they want to spend, "
+    "BEFORE you get into anything substantive. The first turn has four parts, "
+    "in roughly this order, in one short message: "
+    "(a) a brief warm hello; "
+    "(b) **a short explanation of what this is, what it's for, and what it'll "
+    "involve** — frame it as a process, not as 'who I am'. Something like: "
+    "this is a two-way interview the collective uses to get a real sense of "
+    "what its members care about, what they want from it, and what they're "
+    "worried about; it'll be a back-and-forth conversation grounded in what "
+    "you've already shared (Discord, application, writings); afterwards, notes "
+    "get written up that you can review and edit before anything is filed. "
+    "Two-three sentences, concrete, no marketing tone. The participant should "
+    "know what they're stepping into; "
+    "(c) the time question with a recommended ballpark (*'how long do you want "
+    "to spend? about 15-20 minutes is the usual length, but i'll check in there "
+    "if you want to keep going.'*); "
+    "(d) a small open invitation that they can ask you anything first — *'…or "
+    "if there's anything you want to ask first — about this, the collective, "
+    "anything — fire away.'* The invitation should feel genuinely open, not "
+    "scoped to format/meta questions only — they may want to ask about a member, "
+    "a project, what the collective even is, why we're doing this, whatever. "
+    "If you don't already know from member(), you can also ask one quick "
+    "familiarity question — but only if it doesn't bloat the message; the "
+    "explanation + time + invitation are the priority. "
+    "The concrete substantive question comes on the NEXT turn, once they've "
+    "told you how long they have (and answered any questions they had). Don't "
+    "pile a substantive question on top of the opening — it feels like pressure "
+    "before they've even sat down. "
+    "When you do get to the substantive opener (next turn, not this one), avoid "
+    "two failure modes: (1) blank-canvas openers like 'this can be whatever's "
+    "useful' / 'we can go wherever you want' / 'you steer' — they put all the "
+    "structuring labor on the participant; (2) abstract self-survey openers like "
+    "'what's most live for you?' / 'what's animating you?' / 'what's on your "
+    "mind?' — they demand the participant introspect and hand over a thesis "
+    "statement before the conversation has any warmth, like a job-interview "
+    "*'tell me about yourself'* in disguise. Those abstract questions are fine "
+    "*later*, once trust is established — just not as the opener. The substantive "
+    "opener should be ONE concrete, externally-grounded question — anchored in "
+    "something specific you can see (a recent thing they shipped, posted, or "
+    "wrote about; a project on their member page) or (if they're fresh) the "
+    "concrete fact of how they got here. If you can't think of anything specific, "
+    "default to *'how did you find your way here?'* or *'have you been around "
+    "the collective much, or is this your first proper look at it?'*. "
+    "Keep this opening tight."
+)
+
+
+def _opening_user_message(session: Session) -> dict:
+    """Build the opening-turn user message: time tag + opening instruction + member hint."""
+    hint = ""
+    if session.member_hint:
+        hint = (
+            f"\n<hint>Frontend says they identified themselves as: {session.member_hint!r}. "
+            "Quietly call `member()` with that to look them up before composing your opening.</hint>"
+        )
+    return {
+        "role": "user",
+        "content": f"{session.time_tag()}\n{_OPENING_INSTRUCTION}{hint}</system_event>",
+    }
 
 
 # -- the loop ---------------------------------------------------------------
@@ -501,54 +568,7 @@ def step_stream(session: Session, user_text: str | None, client: Anthropic, *, o
     session.touch()
     system = _build_system_prompt()
     if opening:
-        # Same opening_turn user-message as the non-streaming path
-        hint = ""
-        if session.member_hint:
-            hint = (
-                f"\n<hint>Frontend says they identified themselves as: {session.member_hint!r}. "
-                "Quietly call `member()` with that to look them up before composing your opening.</hint>"
-            )
-        session.messages.append({
-            "role": "user",
-            "content": (
-                f"{session.time_tag()}\n"
-                "<system_event>The participant has just connected. No message yet. "
-                "Compose your opening turn — short, warm, real. "
-                "**Ask how long they want to spend BEFORE you get into anything substantive.** "
-                "The first turn is essentially: a brief warm hello, the time question, "
-                "(if you don't already know from member()) a quick familiarity check, and "
-                "**a small invitation for them to ask anything they want before starting** "
-                "(*'…or if there's anything you want to ask first — about this, the collective, "
-                "anything — fire away.'*). The invitation should feel genuinely open, not "
-                "scoped to format/meta questions only — they may want to ask about a member, "
-                "a project, what the collective even is, why we're doing this, whatever. "
-                "That's it. The concrete substantive question comes on the NEXT turn, once "
-                "they've told you how long they have (and answered any questions they had). "
-                "Don't pile a substantive question on top of the time question in the opening — "
-                "it makes them juggle too many things at once and feels like pressure before "
-                "they've even sat down. "
-                "**Offer a recommended ballpark when you ask** so they don't have to invent "
-                "a number cold — something like *'about 15-20 minutes is the usual length, "
-                "but i'll check in there if you want to keep going.'* "
-                "When you do get to the substantive opener (next turn, not this one), avoid "
-                "two failure modes: (1) blank-canvas openers like 'this can be whatever's "
-                "useful' / 'we can go wherever you want' / 'you steer' — they put all the "
-                "structuring labor on the participant; (2) abstract self-survey openers like "
-                "'what's most live for you?' / 'what's animating you?' / 'what's on your "
-                "mind?' — they demand the participant introspect and hand over a thesis "
-                "statement before the conversation has any warmth, like a job-interview "
-                "*'tell me about yourself'* in disguise. Those abstract questions are fine "
-                "*later*, once trust is established — just not as the opener. The substantive "
-                "opener should be ONE concrete, externally-grounded question — anchored in "
-                "something specific you can see (a recent thing they shipped, posted, or "
-                "wrote about; a project on their member page) or (if they're fresh) the "
-                "concrete fact of how they got here. If you can't think of anything specific, "
-                "default to *'how did you find your way here?'* or *'have you been around "
-                "the collective much, or is this your first proper look at it?'*. "
-                "Keep this opening tight."
-                f"{hint}</system_event>"
-            ),
-        })
+        session.messages.append(_opening_user_message(session))
     else:
         is_first = len(session.messages) == 0
         session.messages.append(_wrap_user_message(session, user_text or "", is_first))
@@ -579,54 +599,6 @@ def opening_turn(session: Session, client: Anthropic | None = None) -> str:
     if client is None:
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
     system = _build_system_prompt()
-    hint = ""
-    if session.member_hint:
-        hint = (
-            f"\n<hint>Frontend says they identified themselves as: {session.member_hint!r}. "
-            "Quietly call `member()` with that to look them up before composing your opening.</hint>"
-        )
-    session.messages.append(
-        {
-            "role": "user",
-            "content": (
-                f"{session.time_tag()}\n"
-                "<system_event>The participant has just connected. No message yet. "
-                "Compose your opening turn — short, warm, real. "
-                "**Ask how long they want to spend BEFORE you get into anything substantive.** "
-                "The first turn is essentially: a brief warm hello, the time question, "
-                "(if you don't already know from member()) a quick familiarity check, and "
-                "**a small invitation for them to ask anything they want before starting** "
-                "(*'…or if there's anything you want to ask first — about this, the collective, "
-                "anything — fire away.'*). The invitation should feel genuinely open, not "
-                "scoped to format/meta questions only — they may want to ask about a member, "
-                "a project, what the collective even is, why we're doing this, whatever. "
-                "That's it. The concrete substantive question comes on the NEXT turn, once "
-                "they've told you how long they have (and answered any questions they had). "
-                "Don't pile a substantive question on top of the time question in the opening — "
-                "it makes them juggle too many things at once and feels like pressure before "
-                "they've even sat down. "
-                "**Offer a recommended ballpark when you ask** so they don't have to invent "
-                "a number cold — something like *'about 15-20 minutes is the usual length, "
-                "but i'll check in there if you want to keep going.'* "
-                "When you do get to the substantive opener (next turn, not this one), avoid "
-                "two failure modes: (1) blank-canvas openers like 'this can be whatever's "
-                "useful' / 'we can go wherever you want' / 'you steer' — they put all the "
-                "structuring labor on the participant; (2) abstract self-survey openers like "
-                "'what's most live for you?' / 'what's animating you?' / 'what's on your "
-                "mind?' — they demand the participant introspect and hand over a thesis "
-                "statement before the conversation has any warmth, like a job-interview "
-                "*'tell me about yourself'* in disguise. Those abstract questions are fine "
-                "*later*, once trust is established — just not as the opener. The substantive "
-                "opener should be ONE concrete, externally-grounded question — anchored in "
-                "something specific you can see (a recent thing they shipped, posted, or "
-                "wrote about; a project on their member page) or (if they're fresh) the "
-                "concrete fact of how they got here. If you can't think of anything specific, "
-                "default to *'how did you find your way here?'* or *'have you been around "
-                "the collective much, or is this your first proper look at it?'*. "
-                "Keep this opening tight."
-                f"{hint}</system_event>"
-            ),
-        }
-    )
+    session.messages.append(_opening_user_message(session))
     msg = _run_turn(client, session, system)
     return _assistant_text(msg)

@@ -22,8 +22,6 @@ NOTES_DIR.mkdir(exist_ok=True)
 # kept available as a faster/cheaper fallback for low-stakes / debugging runs.
 MODEL_DEFAULT = "claude-opus-4-7"
 MODEL_FAST = "claude-sonnet-4-6"
-# Backwards-compat alias for any existing callers expecting MODEL_DEEP.
-MODEL_DEEP = MODEL_DEFAULT
 
 # Hard caps so a runaway loop can't pile up turns.
 MAX_TOOL_TURNS = 16
