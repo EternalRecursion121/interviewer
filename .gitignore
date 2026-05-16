@@ -1,0 +1,25 @@
+# pipeline working data — bulky / may contain sensitive interview material.
+# Structure + the contract README are tracked; contents are not.
+/unprocessed/**
+!/unprocessed/
+!/unprocessed/uploads/
+!/unprocessed/transcripts/
+!/unprocessed/notes/
+!/unprocessed/**/.gitkeep
+!/unprocessed/README.md
+/processed/**
+!/processed/
+!/processed/.gitkeep
+!/processed/README.md
+
+# wiki content + raw sources — generated/ingested data, not code.
+# Rebuilt from raw via build_wiki/ scripts; not tracked in this repo.
+/wiki/
+/raw/
+
+# tooling / local
+.superpowers/
+server/.env
+server/.venv/
+**/__pycache__/
+*.pyc

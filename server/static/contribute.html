@@ -1,0 +1,44 @@
+<main class="iv">
+  <div class="iv-intro">
+    <p class="iv-kicker">contribute</p>
+    <h1>Drop something in the <em>compost</em>.</h1>
+    <p class="iv-lede">Notes, transcripts, slides, a folder of readings, a scrap
+    of a conversation — anything that should eventually feed the wiki. It lands
+    in <code>unprocessed/</code> as raw material. Later, someone runs an
+    integrate pass that reads it, folds the signal into the wiki with proper
+    citations, and files the consumed input under <code>processed/</code>.
+    Nothing here is published as-is.</p>
+  </div>
+
+  <form class="form-card" id="up">
+    <div class="field">
+      <label for="u-label">Label this batch</label>
+      <span class="hint">A short name so the integrate pass knows what it's looking at. Optional.</span>
+      <input type="text" id="u-label" autocomplete="off" placeholder="e.g. kaarel-verification-slides, or notes-from-pod-x">
+    </div>
+
+    <div class="dropzone" id="drop">
+      <p class="dz-big">drag files or a folder here</p>
+      <p class="dz-sub">or pick them —</p>
+      <div class="dz-btns">
+        <label class="btn btn-ghost dz-pick">
+          choose files
+          <input type="file" id="u-files" multiple hidden>
+        </label>
+        <label class="btn btn-ghost dz-pick">
+          choose a folder
+          <input type="file" id="u-dir" webkitdirectory directory multiple hidden>
+        </label>
+      </div>
+    </div>
+
+    <ul class="up-list" id="upList"></ul>
+
+    <div class="form-foot">
+      <span class="form-note" id="upNote">nothing selected yet</span>
+      <button type="submit" class="btn" id="upBtn" disabled>send to unprocessed/</button>
+    </div>
+  </form>
+
+  <div class="up-result" id="upResult" style="display:none"></div>
+</main>

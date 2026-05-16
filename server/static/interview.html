@@ -1,0 +1,85 @@
+<main class="iv">
+  <div class="iv-intro" id="introBlock">
+    <p class="iv-kicker">the interview</p>
+    <h1>Let's have a <em>real</em> conversation.</h1>
+    <p class="iv-lede">Two parts. First, a few optional questions so the interviewer
+    isn't starting cold — answer what you like, skip the rest, skip all of it. Then
+    an open conversation, grounded in the wiki, about what you care about, what you
+    want to know, and what you're worried about. Afterwards you get to read and edit
+    the notes before anything is filed.</p>
+  </div>
+
+  <form class="form-card" id="phase1">
+    <div class="field">
+      <label for="f-name">Who are you?</label>
+      <span class="hint">A name or handle — lets the interviewer pull up your wiki page. Optional.</span>
+      <input type="text" id="f-name" name="name" autocomplete="off" placeholder="e.g. Ben Auer, or a discord handle">
+    </div>
+
+    <div class="field">
+      <label for="f-working">What are you working on?</label>
+      <span class="hint">Research, a project, a question you're chewing on — whatever's live.</span>
+      <textarea id="f-working" name="working_on" placeholder="optional"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="f-time">How long do you have?</label>
+      <span class="hint">It'll check in, not cut you off.</span>
+      <select id="f-time" name="time">
+        <option value="">— decide later —</option>
+        <option value="15">~15 minutes</option>
+        <option value="20" selected>~20 minutes</option>
+        <option value="30">~30 minutes</option>
+        <option value="45">~45 minutes</option>
+        <option value="0">no fixed limit</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="f-stuck">What are you stuck on?</label>
+      <span class="hint">A problem you're turning over — research or otherwise.</span>
+      <textarea id="f-stuck" name="stuck_on" placeholder="optional"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="f-know">What do you want to know?</label>
+      <span class="hint">A question for the cohort, the field, a mentor — it'll actually look it up.</span>
+      <textarea id="f-know" name="want_to_know" placeholder="optional"></textarea>
+    </div>
+
+    <div class="form-foot">
+      <span class="form-note">every field is optional — you can submit this blank.</span>
+      <div>
+        <button type="button" class="btn btn-ghost" id="skipBtn">skip it all →</button>
+        <button type="submit" class="btn" id="beginBtn">begin the conversation</button>
+      </div>
+    </div>
+  </form>
+
+  <section class="chat" id="chat">
+    <div class="transcript" id="transcript"></div>
+    <div class="iv-status" id="status"></div>
+    <div class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="say something…" disabled></textarea>
+      <button class="btn" id="sendBtn" disabled>send</button>
+    </div>
+    <div class="form-foot" style="margin-top:.4rem">
+      <span class="form-note">when you're done, just say so — or</span>
+      <button type="button" class="btn btn-ghost" id="endBtn">end &amp; write the notes →</button>
+    </div>
+  </section>
+
+  <section class="notes-stage" id="notesStage">
+    <p class="iv-kicker">your notes</p>
+    <h1>Read them. <em>Change</em> anything.</h1>
+    <p class="notes-intro">These were written from your conversation. They're yours
+    to correct, cut, or rewrite before they're filed. Nothing here is published —
+    the operator asks before quoting anything publicly.</p>
+    <textarea class="notes-edit" id="notesEdit" spellcheck="false"></textarea>
+    <div class="notes-foot">
+      <button class="btn" id="saveNotesBtn">save my edits</button>
+      <span class="saved-flag" id="savedFlag" style="display:none">saved ✓</span>
+      <a class="btn btn-ghost" href="/wiki">done — take me to the wiki →</a>
+    </div>
+  </section>
+</main>
