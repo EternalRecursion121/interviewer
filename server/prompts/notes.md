@@ -25,6 +25,16 @@ last_updated: <date>
 ---
 ```
 
+The input may begin with a `# Stage 1 form` block — the participant's
+pre-interview answers (value / falling-short / ideas / involvement /
+newsletter). Treat it as first-class source material: fold *value* into what's
+working, *falling-short* into criticism, *involvement* into matchmaking, and
+*ideas* into `## Ideas proposed`. Form answers that bear on an open governance
+question may seed `Positions on open questions` — but mark them as form-sourced
+(no turn citation, since the form has no turns) rather than quoting them as
+conversation positions. Newsletter was captured by the form — do not treat its
+absence in the conversation as a gap.
+
 The body has these sections:
 
 ### `## Who`
@@ -66,6 +76,15 @@ If the participant gave their position on any of the open governance questions i
 Do this only for questions they actually addressed. If they punted on a question or it didn't come up, don't include it — empty is better than padded.
 
 This section is the structural input to the cross-member aggregation that will eventually run across all interview notes. Make the quotes verbatim and the question numbering consistent.
+
+### `## Ideas proposed`
+
+If the participant proposed any concrete initiative, ritual, tool, or thing
+they wish existed — in the stage-1 form OR in the conversation — capture each
+verbatim, whether they'd want to own/run it (quote them if they said), and who
+in the collective you'd point them at. This is the structural input to a
+future cross-participant idea-pool aggregation. If nothing concrete was
+proposed, omit the section.
 
 ### `## Surprises`
 
