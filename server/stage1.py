@@ -15,6 +15,12 @@ The canonical normalized shape is:
             "frequency": str | None,
             "interested_in": str | None,
         } | None,
+        "open_questions": {             # None unless ≥1 braindump is non-empty
+            "membership": str | None,
+            "growth": str | None,
+            "roles": str | None,
+            "action": str | None,
+        } | None,
     }
 
 `normalize_stage1` returns None when the participant supplied nothing at all
@@ -23,6 +29,22 @@ The canonical normalized shape is:
 from __future__ import annotations
 
 TEXT_FIELDS = ("value", "falling_short", "ideas", "involvement")
+
+# The open governance questions the stage-1 form lets participants braindump
+# on — a trimmed subset of wiki/open-questions.md. Q4 ("what's stopping you")
+# and Q5 ("what could we do better") are omitted because broad stage-1 prompts
+# 4 and 2 already cover that ground. Each tuple is
+# (slug, wiki Q-number, short question text): the slug keys the data, the
+# Q-number attributes the braindump to the right `## Positions on open
+# questions` bucket. wiki/open-questions.md is canonical — keep this in sync
+# by hand.
+OPEN_QUESTIONS = (
+    ("membership", "Q1", "How should new membership be handled?"),
+    ("growth", "Q2", "Should the collective grow — and if so, how?"),
+    ("roles", "Q3", "What roles of responsibility should exist, and who'd want them?"),
+    ("action", "Q6", "How do we shift from talking to actually doing?"),
+)
+OPEN_QUESTION_KEYS = tuple(slug for slug, _, _ in OPEN_QUESTIONS)
 
 
 def _clean(v) -> str | None:
@@ -38,6 +60,14 @@ def _coerce_minutes(v) -> int | None:
     except (TypeError, ValueError):
         return None
     return n if n > 0 else None
+
+
+def _clean_open_questions(v) -> dict | None:
+    """Clean a raw open_questions dict to {slug: str|None}, or None if all blank."""
+    if not isinstance(v, dict):
+        return None
+    cleaned = {k: _clean(v.get(k)) for k in OPEN_QUESTION_KEYS}
+    return cleaned if any(cleaned.values()) else None
 
 
 def normalize_stage1(raw: dict | None) -> dict | None:
@@ -60,11 +90,14 @@ def normalize_stage1(raw: dict | None) -> dict | None:
                 "interested_in": _clean(nl.get("interested_in")),
             }
 
+    open_questions = _clean_open_questions(raw.get("open_questions"))
+
     out = {
         **text,
         "time_minutes": time_minutes,
         "no_time_limit": no_time_limit,
         "newsletter": newsletter,
+        "open_questions": open_questions,
     }
 
     # "Empty" = nothing the participant actually chose. no_time_limit=True is a
@@ -74,6 +107,7 @@ def normalize_stage1(raw: dict | None) -> dict | None:
         and time_minutes is None
         and not no_time_limit
         and newsletter is None
+        and open_questions is None
     ):
         return None
     return out

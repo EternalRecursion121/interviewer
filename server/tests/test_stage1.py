@@ -29,6 +29,7 @@ def test_normalize_strips_and_keeps_present_fields():
         "time_minutes": 20,
         "no_time_limit": False,
         "newsletter": {"email": "a@b.com", "frequency": "weekly", "interested_in": None},
+        "open_questions": None,
     }
 
 
@@ -107,3 +108,46 @@ def test_newsletter_payload():
         "interested_in": None,
         "source": "stage1_form",
     }
+
+
+def test_normalize_open_questions_populated():
+    out = normalize_stage1(
+        {"open_questions": {
+            "membership": "  vouching  ", "growth": "stay small",
+            "roles": "a rotating crew", "action": "ship weekly"}}
+    )
+    assert out is not None
+    assert out["open_questions"] == {
+        "membership": "vouching", "growth": "stay small",
+        "roles": "a rotating crew", "action": "ship weekly"}
+
+
+def test_normalize_open_questions_partial():
+    out = normalize_stage1(
+        {"open_questions": {"membership": "vouching", "growth": "  ",
+                            "roles": "", "action": None}}
+    )
+    assert out["open_questions"] == {
+        "membership": "vouching", "growth": None, "roles": None, "action": None}
+
+
+def test_normalize_open_questions_all_blank_is_none():
+    out = normalize_stage1(
+        {"value": "x", "open_questions": {"membership": " ", "growth": "", "roles": None}}
+    )
+    assert out["open_questions"] is None
+
+
+def test_normalize_open_questions_non_dict_is_none():
+    out = normalize_stage1({"value": "x", "open_questions": "not a dict"})
+    assert out["open_questions"] is None
+    # a non-dict open_questions with nothing else is still an empty payload
+    assert normalize_stage1({"open_questions": "not a dict"}) is None
+
+
+def test_normalize_open_questions_alone_is_not_empty():
+    out = normalize_stage1({"open_questions": {"roles": "rotating committee"}})
+    assert out is not None
+    assert out["open_questions"] == {
+        "membership": None, "growth": None,
+        "roles": "rotating committee", "action": None}
