@@ -87,3 +87,80 @@ def time_choice_to_budget_seconds(stage1: dict | None) -> int | None:
     if isinstance(mins, int) and mins > 0:
         return mins * 60
     return None
+
+
+_MAP_FIELDS = (
+    ("value", "What they value about the collective"),
+    ("falling_short", "Where they think we're falling short"),
+    ("ideas", "Ideas / things they wish existed"),
+    ("involvement", "Whether / how they want to get more involved"),
+)
+
+_MAP_PREAMBLE = (
+    "The participant filled out a short pre-interview form. This is your "
+    "breadth map. Do NOT re-ask these cold. Open hot on whatever is most "
+    "alive here and follow your curiosity across threads — one deep vein or "
+    "many, your call. The failure mode this map exists to prevent is "
+    "tunnelling into the first topic and never achieving breadth. A blank "
+    "field means they skipped it; absence is a signal, not a prompt to "
+    "interrogate."
+)
+
+
+def render_breadth_map(stage1: dict | None) -> str:
+    """The <stage1_breadth_map> block injected into stage 2's opening turn.
+
+    Returns "" when there is nothing substantive to show (the time-only or
+    skipped case) so the caller can fall back to the legacy opener.
+    """
+    if not stage1:
+        return ""
+    lines = []
+    for key, label in _MAP_FIELDS:
+        val = stage1.get(key)
+        if val:
+            lines.append(f'- {label}: "{val}"')
+    has_newsletter = bool(stage1.get("newsletter"))
+    if not lines and not has_newsletter:
+        return ""
+    if has_newsletter:
+        lines.append(
+            "- Newsletter: already captured via the form — do NOT ask about "
+            "the newsletter in the conversation."
+        )
+    body = "\n".join(lines)
+    return f"<stage1_breadth_map>\n{_MAP_PREAMBLE}\n\n{body}\n</stage1_breadth_map>"
+
+
+def format_stage1_for_notes(stage1: dict | None) -> str:
+    """A plain (non-instructional) block prepended to the reflector input."""
+    if not stage1:
+        return ""
+    lines = ["# Stage 1 form", ""]
+    for key, label in _MAP_FIELDS:
+        val = stage1.get(key)
+        lines.append(f"- {label}: {val if val else '(skipped)'}")
+    nl = stage1.get("newsletter")
+    if nl:
+        lines.append(
+            f"- Newsletter: email={nl.get('email')}, "
+            f"frequency={nl.get('frequency')}, "
+            f"interested_in={nl.get('interested_in')} "
+            "(captured via form, not the conversation)"
+        )
+    return "\n".join(lines)
+
+
+def newsletter_payload(stage1: dict | None) -> dict | None:
+    """The record body for an existing-format newsletter subscription, or None."""
+    if not stage1:
+        return None
+    nl = stage1.get("newsletter")
+    if not nl:
+        return None
+    return {
+        "email": nl.get("email"),
+        "frequency": nl.get("frequency"),
+        "interested_in": nl.get("interested_in"),
+        "source": "stage1_form",
+    }

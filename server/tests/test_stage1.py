@@ -56,3 +56,54 @@ def test_time_choice_to_budget_seconds():
     assert time_choice_to_budget_seconds({"time_minutes": None, "no_time_limit": True}) is None
     assert time_choice_to_budget_seconds({"time_minutes": None, "no_time_limit": False}) is None
     assert time_choice_to_budget_seconds({"time_minutes": 20, "no_time_limit": False}) == 1200
+
+
+from stage1 import render_breadth_map, format_stage1_for_notes, newsletter_payload
+
+
+def test_render_breadth_map_empty():
+    assert render_breadth_map(None) == ""
+    assert render_breadth_map(
+        {"value": None, "falling_short": None, "ideas": None,
+         "involvement": None, "time_minutes": 30, "no_time_limit": False,
+         "newsletter": None}
+    ) == ""
+
+
+def test_render_breadth_map_includes_only_present_fields():
+    bm = render_breadth_map(
+        {"value": "the people", "falling_short": None, "ideas": "a book club",
+         "involvement": None, "time_minutes": None, "no_time_limit": False,
+         "newsletter": {"email": "a@b.com", "frequency": None, "interested_in": None}}
+    )
+    assert bm.startswith("<stage1_breadth_map>")
+    assert bm.rstrip().endswith("</stage1_breadth_map>")
+    assert "the people" in bm
+    assert "a book club" in bm
+    assert "falling short" not in bm.lower()  # skipped field omitted
+    assert "newsletter" in bm.lower()          # tells stage 2 not to re-ask it
+
+
+def test_format_stage1_for_notes_plain_block():
+    s = format_stage1_for_notes(
+        {"value": "x", "falling_short": "y", "ideas": None,
+         "involvement": "maybe events", "time_minutes": 20,
+         "no_time_limit": False, "newsletter": {"email": "a@b.com",
+         "frequency": "weekly", "interested_in": None}}
+    )
+    assert "# Stage 1 form" in s
+    assert "x" in s and "y" in s and "maybe events" in s
+    assert format_stage1_for_notes(None) == ""
+
+
+def test_newsletter_payload():
+    assert newsletter_payload(None) is None
+    assert newsletter_payload({"newsletter": None}) is None
+    assert newsletter_payload(
+        {"newsletter": {"email": "a@b.com", "frequency": "weekly", "interested_in": None}}
+    ) == {
+        "email": "a@b.com",
+        "frequency": "weekly",
+        "interested_in": None,
+        "source": "stage1_form",
+    }
