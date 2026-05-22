@@ -141,36 +141,10 @@ TOOL_SCHEMAS = [
             "required": ["minutes_remaining"],
         },
     },
-    {
-        "name": "capture_newsletter_preference",
-        "description": (
-            "Capture a participant's interest in a personalised newsletter from the "
-            "collective. Call this only once they've affirmed interest and given you "
-            "the details — don't call it as an ask, call it as a record. If they say "
-            "they're not interested, don't call this at all. Fields: `email` (where "
-            "to send), `frequency` (free text — 'weekly', 'monthly', 'whenever there's "
-            "something good', etc.), `interested_in` (what they want covered — the "
-            "newsletter is personalised so be specific: 'autonomy stuff', 'new member "
-            "intros + writing drops', 'projects shipped this month', etc.). Optional "
-            "`name` if you have it. Optional `note` for anything else they said."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "email": {"type": "string"},
-                "frequency": {"type": "string"},
-                "interested_in": {"type": "string"},
-                "name": {"type": "string"},
-                "note": {"type": "string"},
-            },
-            "required": ["email", "frequency", "interested_in"],
-        },
-    },
 ]
 
 # Special tool names — handled in the loop, not via `dispatch`.
 END_INTERVIEW_TOOL = "end_interview"
-NEWSLETTER_TOOL = "capture_newsletter_preference"
 UPDATE_TIME_BUDGET_TOOL = "update_time_budget"
 
 

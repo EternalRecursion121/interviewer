@@ -24,12 +24,12 @@ from config import (
     PROMPTS_DIR,
     WIKI_DIR,
 )
-from tools import END_INTERVIEW_TOOL, NEWSLETTER_TOOL, TOOL_SCHEMAS, UPDATE_TIME_BUDGET_TOOL, dispatch
+from tools import END_INTERVIEW_TOOL, TOOL_SCHEMAS, UPDATE_TIME_BUDGET_TOOL, dispatch
 
 
 # Tools the frontend gets to see (the wiki tools — informational, useful as
 # "look what i'm doing" indicators). Operational tools (end_interview,
-# update_time_budget, capture_newsletter_preference) are NOT surfaced.
+# update_time_budget) are NOT surfaced.
 SURFACED_TOOLS = {"member", "search", "open", "open_many", "follow"}
 
 
@@ -59,7 +59,7 @@ def _humanize_tool_call(name: str, inp: dict) -> str:
 NEWSLETTER_DIR = Path(__file__).parent / "newsletter_subscriptions"
 
 
-def _save_newsletter_subscription(session_id: str, payload: dict) -> Path:
+def save_newsletter_subscription(session_id: str, payload: dict) -> Path:
     NEWSLETTER_DIR.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y-%m-%dT%H-%M-%S")
     path = NEWSLETTER_DIR / f"{ts}_{session_id[:8]}.json"
@@ -324,47 +324,6 @@ def _run_turn(client: Anthropic, session: Session, system: list[dict]) -> dict:
                                 ),
                             }
                         )
-                elif block.name == NEWSLETTER_TOOL:
-                    inp = block.input or {}
-                    email = (inp.get("email") or "").strip()
-                    freq = (inp.get("frequency") or "").strip()
-                    interested = (inp.get("interested_in") or "").strip()
-                    if not email or not freq or not interested:
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": (
-                                    "Newsletter capture failed: email, frequency, and "
-                                    "interested_in are all required. Either ask the "
-                                    "participant for the missing piece(s) and try again, "
-                                    "or skip the capture and just acknowledge the interest."
-                                ),
-                            }
-                        )
-                    else:
-                        path = _save_newsletter_subscription(
-                            session.session_id,
-                            {
-                                "email": email,
-                                "frequency": freq,
-                                "interested_in": interested,
-                                "name": (inp.get("name") or "").strip() or None,
-                                "note": (inp.get("note") or "").strip() or None,
-                                "member_hint": session.member_hint,
-                            },
-                        )
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": (
-                                    f"Newsletter preference recorded for {email} "
-                                    f"({freq}). Acknowledge briefly that they're on the "
-                                    "list — don't make a ceremony of it."
-                                ),
-                            }
-                        )
                 else:
                     try:
                         output = dispatch(block.name, block.input or {})
@@ -505,34 +464,6 @@ def _dispatch_tools_streamed(session, final):
                         f"Time budget updated. They now have {int(mins)} more minute(s) "
                         f"from now. Acknowledge briefly and continue."
                     ),
-                })
-        elif block.name == NEWSLETTER_TOOL:
-            inp = block.input or {}
-            email = (inp.get("email") or "").strip()
-            freq = (inp.get("frequency") or "").strip()
-            interested = (inp.get("interested_in") or "").strip()
-            if not email or not freq or not interested:
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": "Newsletter capture failed: email, frequency, and interested_in are all required.",
-                })
-            else:
-                _save_newsletter_subscription(
-                    session.session_id,
-                    {
-                        "email": email,
-                        "frequency": freq,
-                        "interested_in": interested,
-                        "name": (inp.get("name") or "").strip() or None,
-                        "note": (inp.get("note") or "").strip() or None,
-                        "member_hint": session.member_hint,
-                    },
-                )
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": f"Newsletter preference recorded for {email}. Acknowledge briefly.",
                 })
         else:
             try:
