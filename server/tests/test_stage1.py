@@ -200,3 +200,16 @@ def test_render_breadth_map_multiple_open_questions():
     assert (bm.index("invite by personal vouching")
             < bm.index("a rotating stewardship crew")
             < bm.index("ship one small thing every week"))
+
+
+def test_format_stage1_for_notes_includes_open_questions():
+    s = format_stage1_for_notes(
+        {"value": "x", "falling_short": None, "ideas": None,
+         "involvement": None, "time_minutes": None, "no_time_limit": False,
+         "newsletter": None,
+         "open_questions": {"membership": "a vouching model", "growth": None,
+                            "roles": None, "action": None}}
+    )
+    assert "Open question Q1" in s
+    assert "a vouching model" in s
+    assert "Positions on open questions" in s

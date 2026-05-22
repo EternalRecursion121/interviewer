@@ -195,6 +195,15 @@ def format_stage1_for_notes(stage1: dict | None) -> str:
             f"interested_in={nl.get('interested_in')} "
             "(captured via form, not the conversation)"
         )
+    oq = stage1.get("open_questions")
+    if oq:
+        for slug, qnum, text in OPEN_QUESTIONS:
+            val = oq.get(slug)
+            if val:
+                lines.append(
+                    f"- Open question {qnum} ({text}): {val} "
+                    "— form-sourced; fold into `## Positions on open questions`"
+                )
     return "\n".join(lines)
 
 
