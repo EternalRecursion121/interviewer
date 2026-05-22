@@ -11,6 +11,13 @@ server/.env.*
 wiki/
 raw/
 
+# Inbox: staging area for sources being ingested into the wiki.
+# `inbox/unprocessed/` = waiting to be ingested. `inbox/processed/` = done.
+# `inbox/utils/` holds the rerunnable ingest scripts (no PII), but the whole
+# tree is excluded because in practice items spend most of their time in
+# processed/ alongside their snapshots, and one ignore rule is simpler.
+inbox/
+
 # Generated interview artifacts (transcripts, notes, user submissions)
 server/transcripts/
 server/notes/
