@@ -32,6 +32,9 @@ def main():
             "time_minutes": 5,
             "no_time_limit": False,
             "newsletter": None,
+            "open_questions": {
+                "roles": "a small rotating crew for events and the website",
+            },
         }
     )
     session = Session(member_hint="lou", stage1=s1)

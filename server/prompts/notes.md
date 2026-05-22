@@ -27,11 +27,13 @@ last_updated: <date>
 
 The input may begin with a `# Stage 1 form` block — the participant's
 pre-interview answers (value / falling-short / ideas / involvement /
-newsletter). Treat it as first-class source material: fold *value* into what's
-working, *falling-short* into criticism, *involvement* into matchmaking, and
-*ideas* into `## Ideas proposed`. Form answers that bear on an open governance
-question may seed `Positions on open questions` — but mark them as form-sourced
-(no turn citation, since the form has no turns) rather than quoting them as
+open-question braindumps / newsletter). Treat it as first-class source
+material: fold *value* into what's working, *falling-short* into criticism,
+*involvement* into matchmaking, and *ideas* into `## Ideas proposed`. The block
+may also carry explicit braindumps on the open governance questions, each
+already tagged with its wiki question (Q1/Q2/Q3/Q6); quote those verbatim under
+`## Positions on open questions`. Mark every form-sourced position as such (no
+turn citation, since the form has no turns) rather than quoting them as
 conversation positions. Newsletter was captured by the form — do not treat its
 absence in the conversation as a gap.
 
