@@ -65,7 +65,7 @@ If the conversation surfaced anything — a project they're working on, a projec
 
 ### `## Positions on open questions`
 
-If the participant gave their position on any of the open governance questions in `wiki/open-questions.md` (Q1 membership / Q2 growth / Q3 roles / Q4 friction / Q5 criticism), capture it here. Format:
+If the participant gave their position on any of the open governance questions in `wiki/open-questions.md` (Q1 membership / Q2 growth / Q3 roles / Q4 friction / Q5 criticism / Q6 doing), capture it here. Format:
 
 ```
 **Q<N>: <one-line restatement of the question>**
