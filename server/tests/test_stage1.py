@@ -151,3 +151,28 @@ def test_normalize_open_questions_alone_is_not_empty():
     assert out["open_questions"] == {
         "membership": None, "growth": None,
         "roles": "rotating committee", "action": None}
+
+
+def test_render_breadth_map_includes_open_questions():
+    bm = render_breadth_map(
+        {"value": "the people", "falling_short": None, "ideas": None,
+         "involvement": None, "time_minutes": None, "no_time_limit": False,
+         "newsletter": None,
+         "open_questions": {"membership": None, "growth": None,
+                            "roles": "a rotating committee", "action": None}}
+    )
+    assert "a rotating committee" in bm
+    assert "roles" in bm.lower()
+    assert "do NOT surface them cold" in bm
+
+
+def test_render_breadth_map_open_questions_alone_still_renders():
+    bm = render_breadth_map(
+        {"value": None, "falling_short": None, "ideas": None,
+         "involvement": None, "time_minutes": 20, "no_time_limit": False,
+         "newsletter": None,
+         "open_questions": {"membership": "vouching", "growth": None,
+                            "roles": None, "action": None}}
+    )
+    assert bm.startswith("<stage1_breadth_map>")
+    assert "vouching" in bm

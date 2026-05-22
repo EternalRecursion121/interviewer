@@ -154,9 +154,22 @@ def render_breadth_map(stage1: dict | None) -> str:
         val = stage1.get(key)
         if val:
             lines.append(f'- {label}: "{val}"')
+
+    oq = stage1.get("open_questions") or {}
+    oq_answered = [(text, oq[slug]) for slug, _, text in OPEN_QUESTIONS if oq.get(slug)]
     has_newsletter = bool(stage1.get("newsletter"))
-    if not lines and not has_newsletter:
+
+    if not lines and not oq_answered and not has_newsletter:
         return ""
+
+    if oq_answered:
+        lines.append(
+            "- Open questions they already wrote thoughts on. Go deeper on "
+            "these or skip them — do NOT surface them cold. The open questions "
+            "they left blank are still fair game:"
+        )
+        lines.extend(f'  - {text}: "{val}"' for text, val in oq_answered)
+
     if has_newsletter:
         lines.append(
             "- Newsletter: already captured via the form — do NOT ask about "
