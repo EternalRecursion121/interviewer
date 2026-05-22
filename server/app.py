@@ -66,6 +66,13 @@ class Stage1Newsletter(BaseModel):
     interested_in: Optional[str] = None
 
 
+class Stage1OpenQuestions(BaseModel):
+    membership: Optional[str] = None
+    growth: Optional[str] = None
+    roles: Optional[str] = None
+    action: Optional[str] = None
+
+
 class Stage1Payload(BaseModel):
     value: Optional[str] = None
     falling_short: Optional[str] = None
@@ -74,6 +81,7 @@ class Stage1Payload(BaseModel):
     time_minutes: Optional[int] = None
     no_time_limit: bool = False
     newsletter: Optional[Stage1Newsletter] = None
+    open_questions: Optional[Stage1OpenQuestions] = None
 
 
 class CreateSessionRequest(BaseModel):

@@ -213,3 +213,13 @@ def test_format_stage1_for_notes_includes_open_questions():
     assert "Open question Q1" in s
     assert "a vouching model" in s
     assert "Positions on open questions" in s
+
+
+def test_stage1_payload_model_carries_open_questions():
+    from app import Stage1Payload
+    payload = Stage1Payload(open_questions={"membership": "vouching", "roles": "rotating"})
+    out = normalize_stage1(payload.model_dump())
+    assert out is not None
+    assert out["open_questions"] == {
+        "membership": "vouching", "growth": None,
+        "roles": "rotating", "action": None}
