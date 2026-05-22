@@ -145,6 +145,11 @@ class Session:
         elapsed = self.elapsed()
         budget = self.time_budget_seconds
         if budget is None:
+            if self.stage1 and self.stage1.get("no_time_limit"):
+                return (
+                    f"<time>elapsed={elapsed}s; no fixed time limit — they chose to "
+                    "leave it open in the form, don't ask about time</time>"
+                )
             return f"<time>elapsed={elapsed}s; no budget set yet — ask them how long they have</time>"
         remaining = budget - elapsed
         ratio = elapsed / budget if budget > 0 else 0
@@ -202,9 +207,13 @@ _OPENING_INSTRUCTION = (
     "get written up that you can review and edit before anything is filed. "
     "Two-three sentences, concrete, no marketing tone. The participant should "
     "know what they're stepping into; "
-    "(c) the time question with a recommended ballpark (*'how long do you want "
-    "to spend? about 15-20 minutes is the usual length, but i'll check in there "
-    "if you want to keep going.'*); "
+    "(c) the time question — BUT ONLY if the <time> tag above says 'no budget "
+    "set yet'. If the <time> tag shows a budget, or says they chose no fixed "
+    "time limit, do NOT ask how long they have and don't bring up time at all "
+    "— they already handled it in the pre-interview form. When the tag does "
+    "say 'no budget set yet', ask with a recommended ballpark (*'how long do "
+    "you want to spend? about 15-20 minutes is the usual, but i'll check in if "
+    "you want to keep going.'*); "
     "(d) a small open invitation that they can ask you anything first — *'…or "
     "if there's anything you want to ask first — about this, the collective, "
     "anything — fire away.'* The invitation should feel genuinely open, not "
