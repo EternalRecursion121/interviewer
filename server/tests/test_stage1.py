@@ -176,3 +176,27 @@ def test_render_breadth_map_open_questions_alone_still_renders():
     )
     assert bm.startswith("<stage1_breadth_map>")
     assert "vouching" in bm
+
+
+def test_render_breadth_map_multiple_open_questions():
+    bm = render_breadth_map(
+        {"value": None, "falling_short": None, "ideas": None,
+         "involvement": None, "time_minutes": None, "no_time_limit": False,
+         "newsletter": None,
+         "open_questions": {"membership": "invite by personal vouching",
+                            "growth": None,
+                            "roles": "a rotating stewardship crew",
+                            "action": "ship one small thing every week"}}
+    )
+    # all three answered braindumps surface
+    assert "invite by personal vouching" in bm
+    assert "a rotating stewardship crew" in bm
+    assert "ship one small thing every week" in bm
+    # the shared instruction/header line appears exactly once
+    assert bm.count("do NOT surface them cold") == 1
+    # each answered question renders as its own indented line
+    assert bm.count("\n  - ") == 3
+    # rendered order follows the canonical OPEN_QUESTIONS order
+    assert (bm.index("invite by personal vouching")
+            < bm.index("a rotating stewardship crew")
+            < bm.index("ship one small thing every week"))
