@@ -124,7 +124,7 @@ def time_choice_to_budget_seconds(stage1: dict | None) -> int | None:
 
 
 _MAP_FIELDS = (
-    ("value", "What they value about the collective"),
+    ("value", "What they like about the collective / why they joined"),
     ("falling_short", "Where they think we're falling short"),
     ("ideas", "Ideas / things they wish existed"),
     ("involvement", "Whether / how they want to get more involved"),
