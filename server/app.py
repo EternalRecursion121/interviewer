@@ -27,7 +27,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_DEFAULT, MODEL_FAST
-from loop import Session, opening_turn, step, step_stream
+from loop import Session, opening_turn, step, step_stream, save_newsletter_subscription
+from stage1 import normalize_stage1, time_choice_to_budget_seconds, newsletter_payload
 from transcripts import (
     find_notes_path_for_session,
     save_edited_notes,
@@ -59,6 +60,30 @@ app.add_middleware(
 # ---- request / response models -------------------------------------------
 
 
+class Stage1Newsletter(BaseModel):
+    email: Optional[str] = None
+    frequency: Optional[str] = None
+    interested_in: Optional[str] = None
+
+
+class Stage1OpenQuestions(BaseModel):
+    membership: Optional[str] = None
+    growth: Optional[str] = None
+    roles: Optional[str] = None
+    action: Optional[str] = None
+
+
+class Stage1Payload(BaseModel):
+    value: Optional[str] = None
+    falling_short: Optional[str] = None
+    ideas: Optional[str] = None
+    involvement: Optional[str] = None
+    time_minutes: Optional[int] = None
+    no_time_limit: bool = False
+    newsletter: Optional[Stage1Newsletter] = None
+    open_questions: Optional[Stage1OpenQuestions] = None
+
+
 class CreateSessionRequest(BaseModel):
     member_hint: Optional[str] = Field(
         default=None,
@@ -66,11 +91,15 @@ class CreateSessionRequest(BaseModel):
     )
     fast: bool = Field(
         default=False,
-        description="Use the faster/cheaper Sonnet fallback instead of the default Opus model. Useful for debugging or low-stakes runs.",
+        description="Use the faster/cheaper Sonnet fallback instead of the default Opus model.",
     )
     model: Optional[str] = Field(
         default=None,
         description="Override the interviewer model. Takes precedence over `fast` if set.",
+    )
+    stage1: Optional[Stage1Payload] = Field(
+        default=None,
+        description="Answers from the stage-1 pre-interview form, if the participant filled it out.",
     )
 
 
@@ -126,6 +155,26 @@ HUMAN_REQUESTS_DIR = Path(__file__).parent / "human_requests"
 # ---- endpoints ------------------------------------------------------------
 
 
+def _apply_stage1(session: Session, req: CreateSessionRequest) -> None:
+    """Normalize stage-1 answers onto the session: store them, set the time
+    budget, and persist a newsletter subscription if one was given."""
+    raw = req.stage1.model_dump() if req.stage1 else None
+    s1 = normalize_stage1(raw)
+    session.stage1 = s1
+    budget = time_choice_to_budget_seconds(s1)
+    if budget is not None:
+        session.time_budget_seconds = budget
+    np = newsletter_payload(s1)
+    if np is not None:
+        try:
+            save_newsletter_subscription(
+                session.session_id, {**np, "member_hint": session.member_hint}
+            )
+        except Exception:
+            # A failed newsletter write must never abort session creation.
+            pass
+
+
 @app.post("/sessions", response_model=CreateSessionResponse)
 def create_session(req: CreateSessionRequest):
     if CLIENT is None:
@@ -138,6 +187,7 @@ def create_session(req: CreateSessionRequest):
         model=chosen_model,
     )
     SESSIONS[sid] = session
+    _apply_stage1(session, req)
     text = opening_turn(session, client=CLIENT)
     return CreateSessionResponse(session_id=sid, opening_turn=text)
 
@@ -171,6 +221,7 @@ async def turn(session_id: str, req: TurnRequest):
         session.member_hint,
         session.started_at,
         session.messages,
+        stage1=session.stage1,
     )
     response.transcript_path = str(transcript_path)
     # If the model called end_interview, auto-trigger reflector
@@ -182,6 +233,7 @@ async def turn(session_id: str, req: TurnRequest):
             session.member_hint,
             session.messages,
             transcript_path,
+            stage1=session.stage1,
         )
         response.notes_path = str(notes_path)
     return response
@@ -217,6 +269,7 @@ def turn_stream(session_id: str, req: TurnRequest):
                 session.member_hint,
                 session.started_at,
                 session.messages,
+                stage1=session.stage1,
             )
             yield _sse({"type": "transcript_saved", "path": str(transcript_path)})
             if session.ended:
@@ -227,6 +280,7 @@ def turn_stream(session_id: str, req: TurnRequest):
                     session.member_hint,
                     session.messages,
                     transcript_path,
+                    stage1=session.stage1,
                 )
                 yield _sse({"type": "notes_written", "path": str(notes_path)})
         except Exception as e:
@@ -259,6 +313,7 @@ def start_stream(req: CreateSessionRequest):
         model=chosen_model,
     )
     SESSIONS[sid] = session
+    _apply_stage1(session, req)
 
     def gen():
         yield _sse({"type": "session_created", "session_id": sid})
@@ -270,6 +325,7 @@ def start_stream(req: CreateSessionRequest):
                 session.member_hint,
                 session.started_at,
                 session.messages,
+                stage1=session.stage1,
             )
             yield _sse({"type": "transcript_saved", "path": str(transcript_path)})
         except Exception as e:
@@ -299,6 +355,7 @@ async def end_session(session_id: str):
         session.member_hint,
         session.started_at,
         session.messages,
+        stage1=session.stage1,
     )
     # Run the reflector pass off the request thread so it doesn't block the response
     notes_path = await asyncio.to_thread(
@@ -307,6 +364,7 @@ async def end_session(session_id: str):
         session.member_hint,
         session.messages,
         transcript_path,
+        stage1=session.stage1,
     )
     notes_content = ""
     try:
@@ -413,7 +471,11 @@ async def _sweep_idle_sessions():
                 session.end_reason = session.end_reason or "idle timeout"
                 try:
                     transcript_path = save_transcript(
-                        sid, session.member_hint, session.started_at, session.messages
+                        sid,
+                        session.member_hint,
+                        session.started_at,
+                        session.messages,
+                        stage1=session.stage1,
                     )
                     await asyncio.to_thread(
                         write_notes,
@@ -421,6 +483,7 @@ async def _sweep_idle_sessions():
                         session.member_hint,
                         session.messages,
                         transcript_path,
+                        stage1=session.stage1,
                     )
                 except Exception:
                     # Don't let one bad session kill the sweeper

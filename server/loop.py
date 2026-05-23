@@ -24,12 +24,13 @@ from config import (
     PROMPTS_DIR,
     WIKI_DIR,
 )
-from tools import END_INTERVIEW_TOOL, NEWSLETTER_TOOL, TOOL_SCHEMAS, UPDATE_TIME_BUDGET_TOOL, dispatch
+from stage1 import render_breadth_map
+from tools import END_INTERVIEW_TOOL, TOOL_SCHEMAS, UPDATE_TIME_BUDGET_TOOL, dispatch
 
 
 # Tools the frontend gets to see (the wiki tools — informational, useful as
 # "look what i'm doing" indicators). Operational tools (end_interview,
-# update_time_budget, capture_newsletter_preference) are NOT surfaced.
+# update_time_budget) are NOT surfaced.
 SURFACED_TOOLS = {"member", "search", "open", "open_many", "follow"}
 
 
@@ -59,7 +60,7 @@ def _humanize_tool_call(name: str, inp: dict) -> str:
 NEWSLETTER_DIR = Path(__file__).parent / "newsletter_subscriptions"
 
 
-def _save_newsletter_subscription(session_id: str, payload: dict) -> Path:
+def save_newsletter_subscription(session_id: str, payload: dict) -> Path:
     NEWSLETTER_DIR.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y-%m-%dT%H-%M-%S")
     path = NEWSLETTER_DIR / f"{ts}_{session_id[:8]}.json"
@@ -122,6 +123,7 @@ class Session:
     started_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
     time_budget_seconds: int | None = None  # set by user once they answer "how long"
+    stage1: dict | None = None  # normalized stage-1 form answers, set at creation
     messages: list[dict] = field(default_factory=list)
     member_hint: str | None = None  # name/handle from frontend, optional
     model: str = MODEL_DEFAULT
@@ -143,6 +145,11 @@ class Session:
         elapsed = self.elapsed()
         budget = self.time_budget_seconds
         if budget is None:
+            if self.stage1 and self.stage1.get("no_time_limit"):
+                return (
+                    f"<time>elapsed={elapsed}s; no fixed time limit — they chose to "
+                    "leave it open in the form, don't ask about time</time>"
+                )
             return f"<time>elapsed={elapsed}s; no budget set yet — ask them how long they have</time>"
         remaining = budget - elapsed
         ratio = elapsed / budget if budget > 0 else 0
@@ -200,9 +207,13 @@ _OPENING_INSTRUCTION = (
     "get written up that you can review and edit before anything is filed. "
     "Two-three sentences, concrete, no marketing tone. The participant should "
     "know what they're stepping into; "
-    "(c) the time question with a recommended ballpark (*'how long do you want "
-    "to spend? about 15-20 minutes is the usual length, but i'll check in there "
-    "if you want to keep going.'*); "
+    "(c) the time question — BUT ONLY if the <time> tag above says 'no budget "
+    "set yet'. If the <time> tag shows a budget, or says they chose no fixed "
+    "time limit, do NOT ask how long they have and don't bring up time at all "
+    "— they already handled it in the pre-interview form. When the tag does "
+    "say 'no budget set yet', ask with a recommended ballpark (*'how long do "
+    "you want to spend? about 15-20 minutes is the usual, but i'll check in if "
+    "you want to keep going.'*); "
     "(d) a small open invitation that they can ask you anything first — *'…or "
     "if there's anything you want to ask first — about this, the collective, "
     "anything — fire away.'* The invitation should feel genuinely open, not "
@@ -234,18 +245,53 @@ _OPENING_INSTRUCTION = (
 )
 
 
+# Used when the participant completed the stage-1 form. The breadth map is
+# injected separately (before this text). Key differences from the cold
+# opener: do NOT re-ask the form items, and only ask about time if the time
+# tag still says no budget is set (they skipped the time question).
+_OPENING_INSTRUCTION_STAGE1 = (
+    "<system_event>The participant has just connected and already filled out "
+    "a short pre-interview form — the <stage1_breadth_map> above is their "
+    "answers. Compose your opening turn — short, warm, real, in one message: "
+    "(a) a brief warm hello; (b) one or two sentences on what this is (a "
+    "two-way interview grounded in what they've shared; notes get written up "
+    "afterwards that they can review and edit); (c) a small open invitation "
+    "that they can ask you anything first. Then go straight into ONE concrete "
+    "substantive opener that builds on the most alive thread in the breadth "
+    "map — do NOT recite their answers back, do NOT re-ask the form "
+    "questions, and do NOT ask 'what do you want to talk about'. "
+    "About time: if the <time> tag above shows a budget, the participant "
+    "already set their time in the form — do NOT ask how long they have. "
+    "Only if the <time> tag says 'no budget set yet' should you fold the "
+    "time question into this opening. Keep this opening tight."
+)
+
+
 def _opening_user_message(session: Session) -> dict:
-    """Build the opening-turn user message: time tag + opening instruction + member hint."""
+    """Build the opening-turn user message.
+
+    Cold (no stage 1): time tag + legacy opening instruction + member hint.
+    Armed (stage 1 present): time tag + breadth map + stage-1 opening
+    instruction + member hint.
+    """
     hint = ""
     if session.member_hint:
         hint = (
             f"\n<hint>Frontend says they identified themselves as: {session.member_hint!r}. "
             "Quietly call `member()` with that to look them up before composing your opening.</hint>"
         )
-    return {
-        "role": "user",
-        "content": f"{session.time_tag()}\n{_OPENING_INSTRUCTION}{hint}</system_event>",
-    }
+
+    breadth_map = render_breadth_map(session.stage1)
+    if breadth_map:
+        instruction = _OPENING_INSTRUCTION_STAGE1
+    else:
+        instruction = _OPENING_INSTRUCTION
+
+    parts = [session.time_tag()]
+    if breadth_map:
+        parts.append(breadth_map)
+    parts.append(f"{instruction}{hint}</system_event>")
+    return {"role": "user", "content": "\n".join(parts)}
 
 
 # -- the loop ---------------------------------------------------------------
@@ -321,47 +367,6 @@ def _run_turn(client: Anthropic, session: Session, system: list[dict]) -> dict:
                                     f"more minute(s) from now (total budget = {new_budget}s "
                                     f"from session start). Acknowledge briefly and "
                                     "continue — don't make a ceremony of it."
-                                ),
-                            }
-                        )
-                elif block.name == NEWSLETTER_TOOL:
-                    inp = block.input or {}
-                    email = (inp.get("email") or "").strip()
-                    freq = (inp.get("frequency") or "").strip()
-                    interested = (inp.get("interested_in") or "").strip()
-                    if not email or not freq or not interested:
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": (
-                                    "Newsletter capture failed: email, frequency, and "
-                                    "interested_in are all required. Either ask the "
-                                    "participant for the missing piece(s) and try again, "
-                                    "or skip the capture and just acknowledge the interest."
-                                ),
-                            }
-                        )
-                    else:
-                        path = _save_newsletter_subscription(
-                            session.session_id,
-                            {
-                                "email": email,
-                                "frequency": freq,
-                                "interested_in": interested,
-                                "name": (inp.get("name") or "").strip() or None,
-                                "note": (inp.get("note") or "").strip() or None,
-                                "member_hint": session.member_hint,
-                            },
-                        )
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": (
-                                    f"Newsletter preference recorded for {email} "
-                                    f"({freq}). Acknowledge briefly that they're on the "
-                                    "list — don't make a ceremony of it."
                                 ),
                             }
                         )
@@ -505,34 +510,6 @@ def _dispatch_tools_streamed(session, final):
                         f"Time budget updated. They now have {int(mins)} more minute(s) "
                         f"from now. Acknowledge briefly and continue."
                     ),
-                })
-        elif block.name == NEWSLETTER_TOOL:
-            inp = block.input or {}
-            email = (inp.get("email") or "").strip()
-            freq = (inp.get("frequency") or "").strip()
-            interested = (inp.get("interested_in") or "").strip()
-            if not email or not freq or not interested:
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": "Newsletter capture failed: email, frequency, and interested_in are all required.",
-                })
-            else:
-                _save_newsletter_subscription(
-                    session.session_id,
-                    {
-                        "email": email,
-                        "frequency": freq,
-                        "interested_in": interested,
-                        "name": (inp.get("name") or "").strip() or None,
-                        "note": (inp.get("note") or "").strip() or None,
-                        "member_hint": session.member_hint,
-                    },
-                )
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": f"Newsletter preference recorded for {email}. Acknowledge briefly.",
                 })
         else:
             try:

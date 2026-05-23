@@ -16,11 +16,12 @@ PROMPTS_DIR = SERVER_DIR / "prompts"
 TRANSCRIPTS_DIR.mkdir(exist_ok=True)
 NOTES_DIR.mkdir(exist_ok=True)
 
-# Model selection. Default is Opus 4.7 — chosen after a head-to-head experiment
-# (see /tmp/experiment3/report_addendum.md) where it produced the highest-ceiling
-# reframes (the moves participants explicitly named as "that landed"). Sonnet is
-# kept available as a faster/cheaper fallback for low-stakes / debugging runs.
-MODEL_DEFAULT = "claude-opus-4-7"
+# Model selection. The interviewer runs on Sonnet 4.6 (switched from Opus 4.7
+# at the operator's request — faster and cheaper). Opus 4.7 had originally been
+# chosen after a head-to-head experiment (see /tmp/experiment3/report_addendum.md)
+# where it produced the highest-ceiling reframes; revisit if interview quality
+# regresses. MODEL_FAST remains the explicit Sonnet alias used by the `fast` flag.
+MODEL_DEFAULT = "claude-sonnet-4-6"
 MODEL_FAST = "claude-sonnet-4-6"
 
 # Hard caps so a runaway loop can't pile up turns.

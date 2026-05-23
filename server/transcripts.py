@@ -10,6 +10,7 @@ from pathlib import Path
 from anthropic import Anthropic
 
 from config import ANTHROPIC_API_KEY, MODEL_DEFAULT, NOTES_DIR, PROMPTS_DIR, TRANSCRIPTS_DIR
+from stage1 import format_stage1_for_notes
 
 
 def _slug(s: str) -> str:
@@ -98,6 +99,7 @@ def save_transcript(
     member_hint: str | None,
     started_at: float,
     messages: list[dict],
+    stage1: dict | None = None,
 ) -> Path:
     """Write the full conversation as JSON. Returns the path."""
     ts = datetime.fromtimestamp(started_at, tz=timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
@@ -106,6 +108,7 @@ def save_transcript(
     payload = {
         "session_id": session_id,
         "member_hint": member_hint,
+        "stage1": stage1,
         "started_at_iso": ts,
         "ended_at_iso": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ"),
         "duration_seconds": int(time.time() - started_at),
@@ -161,6 +164,7 @@ def write_notes(
     member_hint: str | None,
     messages: list[dict],
     transcript_path: Path,
+    stage1: dict | None = None,
 ) -> Path:
     """Run the reflector pass: read transcript, write structured wiki notes.
 
@@ -174,11 +178,13 @@ def write_notes(
     if not transcript_text.strip():
         return _write_empty_note(session_id, member_hint, transcript_path, "transcript was empty")
 
+    stage1_block = format_stage1_for_notes(stage1)
+    stage1_prefix = f"{stage1_block}\n\n---\n\n" if stage1_block else ""
     user_msg = (
         f"# Transcript\n\nsession_id: {session_id}\n"
         f"member_hint: {member_hint!r}\n"
         f"transcript_file: {transcript_path.name}\n"
-        f"\n---\n\n{transcript_text}"
+        f"\n---\n\n{stage1_prefix}{transcript_text}"
     )
 
     resp = client.messages.create(

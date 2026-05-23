@@ -25,6 +25,18 @@ last_updated: <date>
 ---
 ```
 
+The input may begin with a `# Stage 1 form` block — the participant's
+pre-interview answers (value / falling-short / ideas / involvement /
+open-question braindumps / newsletter). Treat it as first-class source
+material: fold *value* into what's working, *falling-short* into criticism,
+*involvement* into matchmaking, and *ideas* into `## Ideas proposed`. The block
+may also carry explicit braindumps on the open governance questions, each
+already tagged with its wiki question (Q1/Q2/Q3/Q6); quote those verbatim under
+`## Positions on open questions`. Mark every form-sourced position as such (no
+turn citation, since the form has no turns) rather than quoting them as
+conversation positions. Newsletter was captured by the form — do not treat its
+absence in the conversation as a gap.
+
 The body has these sections:
 
 ### `## Who`
@@ -53,7 +65,7 @@ If the conversation surfaced anything — a project they're working on, a projec
 
 ### `## Positions on open questions`
 
-If the participant gave their position on any of the open governance questions in `wiki/open-questions.md` (Q1 membership / Q2 growth / Q3 roles / Q4 friction / Q5 criticism), capture it here. Format:
+If the participant gave their position on any of the open governance questions in `wiki/open-questions.md` (Q1 membership / Q2 growth / Q3 roles / Q4 friction / Q5 criticism / Q6 doing), capture it here. Format:
 
 ```
 **Q<N>: <one-line restatement of the question>**
@@ -66,6 +78,15 @@ If the participant gave their position on any of the open governance questions i
 Do this only for questions they actually addressed. If they punted on a question or it didn't come up, don't include it — empty is better than padded.
 
 This section is the structural input to the cross-member aggregation that will eventually run across all interview notes. Make the quotes verbatim and the question numbering consistent.
+
+### `## Ideas proposed`
+
+If the participant proposed any concrete initiative, ritual, tool, or thing
+they wish existed — in the stage-1 form OR in the conversation — capture each
+verbatim, whether they'd want to own/run it (quote them if they said), and who
+in the collective you'd point them at. This is the structural input to a
+future cross-participant idea-pool aggregation. If nothing concrete was
+proposed, omit the section.
 
 ### `## Surprises`
 

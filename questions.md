@@ -68,3 +68,19 @@ The interviewer should:
 - "How would you describe the collective's mission." They don't owe you a definition of the thing they joined.
 - "What are your goals." Too abstract. Ask what they're working on this week.
 - "On a scale of 1 to 10..." No.
+
+## Stage 1 — the pre-interview form
+
+Before the conversation, the participant optionally fills a short form. These
+answers are injected into the interviewer's opening context as a breadth map.
+The interviewer must NOT re-ask these cold — they exist so it can go deep in
+the right place instead of tunnelling into the first topic.
+
+1. **what do you value about the collective?**
+2. **where do you think we're falling short?**
+3. **any ideas for things we could do differently, or things you wish existed?**
+4. **would you like to get more involved? if so, what would you actually want to do?**
+5. **newsletter — want one? how often, what would you want in it, what email?**
+
+Plus a time question (quick-pick minutes, or "no fixed limit"). All optional.
+Newsletter and time are captured here, not in the conversation.
