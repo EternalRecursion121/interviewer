@@ -138,6 +138,18 @@ DISCORD_TYPO_FIX = {
 # Keyed by application-form CSV row number. Maps to (display_name, slug).
 NAME_DISPLAY_OVERRIDES = {
     76: ("Frost", "frost"),
+    # Dea's form name is "Dea (or at least that's one of the names we use!)",
+    # which slugify mangles into a monster slug. Her canonical hand-curated
+    # page is dea.md. Consolidate onto it (curated content lives under the
+    # preserved ## What they think out loud header).
+    127: ("Dea", "dea"),
+    # Row 148 (2026-06-16) is Livia Kalossaka re-applying after Vision Weekend
+    # London; her form name is just "Livia". Without this, slugify("Livia")
+    # spawns a spurious livia.md separate from her livia-kalossaka.md (row 120).
+    # Consolidate. NOTE: row 148 is processed after row 120, so a rebuild makes
+    # the auto Why/Create sections reflect the (thinner) row-148 answers; the
+    # richer row-120 "allies" quote is noted in the preserved site section.
+    148: ("Livia Kalossaka", "livia-kalossaka"),
 }
 
 
