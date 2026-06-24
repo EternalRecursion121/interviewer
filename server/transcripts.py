@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +18,49 @@ from stage1 import format_stage1_for_notes
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", "-", s.lower()).strip("-")
     return s[:60] or "anon"
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text via a temp file + atomic rename, so a crash or a client
+    disconnect mid-write can never leave a half-written / corrupt file."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _transcript_basename(session_id: str, member_hint: str | None, started_at: float) -> str:
+    ts = datetime.fromtimestamp(started_at, tz=timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    return f"{ts}_{_slug(member_hint or 'anon')}_{session_id[:8]}"
+
+
+def append_turn_log(
+    session_id: str,
+    member_hint: str | None,
+    started_at: float,
+    new_messages: list[dict],
+) -> Path:
+    """Append just-completed messages to a per-session append-only `.jsonl` log.
+
+    This is the durable record of record: it only ever grows, so a later short
+    or partial `save_transcript` can never shrink it, and a client disconnect
+    after a turn completes can't lose the turn. One JSON object per line.
+    """
+    path = TRANSCRIPTS_DIR / f"{_transcript_basename(session_id, member_hint, started_at)}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not new_messages:
+        return path
+    with path.open("a", encoding="utf-8") as f:
+        for m in _serialize_messages(new_messages):
+            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+    return path
 
 
 def find_notes_path_for_session(session_id: str) -> Path | None:
@@ -114,7 +159,7 @@ def save_transcript(
         "duration_seconds": int(time.time() - started_at),
         "messages": _serialize_messages(messages),
     }
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    _atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=False))
     return path
 
 

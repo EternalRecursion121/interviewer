@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from config import ANTHROPIC_API_KEY, MODEL_DEFAULT, MODEL_FAST
+from config import ANTHROPIC_API_KEY, ANTHROPIC_MAX_RETRIES, MODEL_DEFAULT, MODEL_FAST
 from loop import Session, opening_turn, step, step_stream, save_newsletter_subscription
 from stage1 import normalize_stage1, time_choice_to_budget_seconds, newsletter_payload
 from transcripts import (
@@ -38,7 +38,11 @@ from transcripts import (
 
 
 SESSIONS: dict[str, Session] = {}
-CLIENT = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+CLIENT = (
+    Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=ANTHROPIC_MAX_RETRIES)
+    if ANTHROPIC_API_KEY
+    else None
+)
 
 # How long a session can sit idle (no /turn-stream activity) before we give
 # up on it, save the transcript, write notes, and drop it from memory.
@@ -155,6 +159,24 @@ HUMAN_REQUESTS_DIR = Path(__file__).parent / "human_requests"
 # ---- endpoints ------------------------------------------------------------
 
 
+def _save_transcript_quietly(session: Session) -> None:
+    """Best-effort transcript save for the disconnect/abort path — never raises.
+
+    Used in the streaming generators' `finally` so a client that drops the SSE
+    connection mid-turn (GeneratorExit) still gets its conversation persisted.
+    """
+    try:
+        save_transcript(
+            session.session_id,
+            session.member_hint,
+            session.started_at,
+            session.messages,
+            stage1=session.stage1,
+        )
+    except Exception:
+        pass
+
+
 def _apply_stage1(session: Session, req: CreateSessionRequest) -> None:
     """Normalize stage-1 answers onto the session: store them, set the time
     budget, and persist a newsletter subscription if one was given."""
@@ -260,6 +282,7 @@ def turn_stream(session_id: str, req: TurnRequest):
         raise HTTPException(410, "session has already ended")
 
     def gen():
+        saved = False
         try:
             for evt in step_stream(session, req.text, CLIENT, opening=False):
                 yield _sse(evt)
@@ -271,6 +294,7 @@ def turn_stream(session_id: str, req: TurnRequest):
                 session.messages,
                 stage1=session.stage1,
             )
+            saved = True
             yield _sse({"type": "transcript_saved", "path": str(transcript_path)})
             if session.ended:
                 SESSIONS.pop(session_id, None)
@@ -285,6 +309,11 @@ def turn_stream(session_id: str, req: TurnRequest):
                 yield _sse({"type": "notes_written", "path": str(notes_path)})
         except Exception as e:
             yield _sse({"type": "error", "message": f"{type(e).__name__}: {e}"})
+        finally:
+            # Guarantee a save even if the client disconnected mid-stream (which
+            # raises GeneratorExit here and skips the happy-path save above).
+            if not saved:
+                _save_transcript_quietly(session)
 
     return StreamingResponse(
         gen(),
@@ -316,6 +345,7 @@ def start_stream(req: CreateSessionRequest):
     _apply_stage1(session, req)
 
     def gen():
+        saved = False
         yield _sse({"type": "session_created", "session_id": sid})
         try:
             for evt in step_stream(session, None, CLIENT, opening=True):
@@ -327,9 +357,13 @@ def start_stream(req: CreateSessionRequest):
                 session.messages,
                 stage1=session.stage1,
             )
+            saved = True
             yield _sse({"type": "transcript_saved", "path": str(transcript_path)})
         except Exception as e:
             yield _sse({"type": "error", "message": f"{type(e).__name__}: {e}"})
+        finally:
+            if not saved:
+                _save_transcript_quietly(session)
 
     return StreamingResponse(
         gen(),

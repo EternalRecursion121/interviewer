@@ -33,3 +33,9 @@ MAX_TOOL_TURNS = 16
 MAX_TOKENS_PER_TURN = 1600
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+# Transient-error resilience. The Anthropic SDK retries 408/409/429/500/529 and
+# connection errors with exponential backoff up to this many times — covers the
+# "overloaded at connect" failures that previously killed a whole turn. Streaming
+# requests get the same retry on connection establishment.
+ANTHROPIC_MAX_RETRIES = int(os.environ.get("ANTHROPIC_MAX_RETRIES", "4"))

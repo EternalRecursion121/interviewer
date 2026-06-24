@@ -18,6 +18,7 @@ from anthropic import Anthropic
 
 from config import (
     ANTHROPIC_API_KEY,
+    ANTHROPIC_MAX_RETRIES,
     MAX_TOKENS_PER_TURN,
     MAX_TOOL_TURNS,
     MODEL_DEFAULT,
@@ -26,6 +27,29 @@ from config import (
 )
 from stage1 import render_breadth_map
 from tools import END_INTERVIEW_TOOL, TOOL_SCHEMAS, UPDATE_TIME_BUDGET_TOOL, dispatch
+from transcripts import append_turn_log
+
+
+def _new_client() -> Anthropic:
+    """Anthropic client with transient-error retries enabled (overloaded /
+    rate-limit / 5xx / connection blips retried with exponential backoff)."""
+    return Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=ANTHROPIC_MAX_RETRIES)
+
+
+def _persist_new_messages(session: "Session") -> None:
+    """Append messages committed since the last persist to the durable log.
+
+    Runs server-side as part of the turn, so a client that disconnects right
+    after a turn completes can't take the turn down with it. Best-effort:
+    persistence must never break the conversation."""
+    new = session.messages[session.persisted_count:]
+    if not new:
+        return
+    try:
+        append_turn_log(session.session_id, session.member_hint, session.started_at, new)
+        session.persisted_count = len(session.messages)
+    except Exception:
+        pass
 
 
 # Tools the frontend gets to see (the wiki tools — informational, useful as
@@ -130,6 +154,7 @@ class Session:
     transcript_path: Path | None = None
     ended: bool = False  # set when end_interview tool is called or /end is hit
     end_reason: str | None = None  # populated by end_interview's `reason` arg
+    persisted_count: int = 0  # messages already flushed to the append-only log
 
     def elapsed(self) -> int:
         return int(time.time() - self.started_at)
@@ -404,11 +429,19 @@ def _assistant_text(msg: dict) -> str:
 def step(session: Session, user_text: str, client: Anthropic | None = None) -> str:
     """One human-facing turn: take user text, run the loop, return assistant text."""
     if client is None:
-        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        client = _new_client()
     system = _build_system_prompt()
-    is_first = len(session.messages) == 0
+    snapshot = len(session.messages)
+    is_first = snapshot == 0
     session.messages.append(_wrap_user_message(session, user_text, is_first))
-    msg = _run_turn(client, session, system)
+    try:
+        msg = _run_turn(client, session, system)
+    except Exception:
+        # Atomicity: roll the whole failed turn out of history so a transient
+        # error can't leave a dangling user turn that poisons every later turn.
+        del session.messages[snapshot:]
+        raise
+    _persist_new_messages(session)
     return _assistant_text(msg)
 
 
@@ -544,10 +577,11 @@ def step_stream(session: Session, user_text: str | None, client: Anthropic, *, o
     """
     session.touch()
     system = _build_system_prompt()
+    snapshot = len(session.messages)
     if opening:
         session.messages.append(_opening_user_message(session))
     else:
-        is_first = len(session.messages) == 0
+        is_first = snapshot == 0
         session.messages.append(_wrap_user_message(session, user_text or "", is_first))
 
     try:
@@ -559,8 +593,16 @@ def step_stream(session: Session, user_text: str | None, client: Anthropic, *, o
             if not looped:
                 break
     except Exception as e:
+        # Atomicity: roll the whole failed turn out of history. Without this a
+        # transient API error leaves a dangling user turn and every later turn
+        # 400s — one blip silently kills the rest of the interview.
+        del session.messages[snapshot:]
         yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
         return
+
+    # Flush the completed turn to the durable log before the final event — if the
+    # client disconnects right after, the turn is already safely on disk.
+    _persist_new_messages(session)
 
     yield {
         "type": "turn_done",
@@ -574,8 +616,14 @@ def step_stream(session: Session, user_text: str | None, client: Anthropic, *, o
 def opening_turn(session: Session, client: Anthropic | None = None) -> str:
     """Generate the interviewer's opening turn — no user input yet."""
     if client is None:
-        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        client = _new_client()
     system = _build_system_prompt()
+    snapshot = len(session.messages)
     session.messages.append(_opening_user_message(session))
-    msg = _run_turn(client, session, system)
+    try:
+        msg = _run_turn(client, session, system)
+    except Exception:
+        del session.messages[snapshot:]
+        raise
+    _persist_new_messages(session)
     return _assistant_text(msg)
