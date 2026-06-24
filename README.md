@@ -40,7 +40,9 @@ CLAUDE.md        the wiki schema + conventions (read this before editing the wik
    (115 alignment topics), the resource list, and participant intros.
 2. **The wiki** (`wiki/`) — markdown, owned entirely by Claude. One page per
    concept, per person (split across `participants/`, `mentors/`, `team/` by
-   role), per theme. Written and rewritten as new sources arrive.
+   role), per theme. Written and rewritten as new sources arrive. It follows
+   Andrej Karpathy's
+   [LLM wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 3. **The schema** ([`CLAUDE.md`](CLAUDE.md)) — how the wiki is structured and
    the anti-hallucination rules. Co-evolves with the wiki.
 
