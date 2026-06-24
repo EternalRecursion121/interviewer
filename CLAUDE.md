@@ -37,23 +37,50 @@ wiki/
   tree.md                             the alignment-concept tree as a nested bullet list, grouped by tag
   concepts/<slug>.md                  one page per topic in the tech tree (generated)
   tags/<slug>.md                      one page per top-level grouping (generated)
-  participants/index.md               groups people by role: Participants / Mentors / Event Team / Visitors
-  participants/<slug>.md              one page per person — generated from intros
+  participants/index.md               fellows + visitors index (generated)
+  participants/<slug>.md              one page per seminar fellow / visitor — generated from intros
   participants/enrichment/<slug>.md   web-fetched summaries of public artifacts; never overwritten by builder
+  mentors/index.md                    HAND-CURATED catalogue of mentors + external speakers
+  mentors/matchmaker.md               HAND-CURATED theme → mentor inverse index
+  mentors/<slug>.md                   one page per mentor / external speaker
+  team/index.md                       event-team index (generated)
+  team/<slug>.md                      one page per organizer / ops / facilitator
   themes/<slug>.md                    synthesis pages — shared interests, open questions, worries, reading pointers
   sources/<slug>.md                   pointers describing each raw source
 ```
 
+**People are split across three sibling layers by role** (see "Participant
+roles"). The *directory* is the canonical layer; the `role:` frontmatter still
+records the specific role. A page never lives in more than one layer. All three
+dirs are one level under `wiki/`, so a person→concept link is always
+`../concepts/<slug>.md` regardless of layer; a person→person link is
+`../<layer>/<slug>.md` (or a bare `<slug>.md` within the same layer).
+
 ## Participant roles — important
 
-People in the wiki play four distinct roles. The interviewer MUST honor this distinction:
+People in the wiki play distinct roles, and each role lives in its own
+directory layer. The interviewer MUST honor this distinction:
 
-- **participant** — a seminar fellow. The primary audience of the interviewer. ~23 people.
-- **mentor** — invited alignment researchers (e.g. Linda Linsefors, Kaarel Hänni, Ouro). Don't treat them as "fellow learners" — they're the people fellows go to for technical feedback. ~5 people.
-- **event-team** — organizers and operations staff (Sofie, Philip, Pauliina, etc.). Don't suggest these people as research collaborators; instead surface them when a participant raises a logistics, well-being, or community-design question.
-- **visitor** — short-term drop-ins, including the founder of Lens Academy (Luc Brinkman) who makes the tech-tree app. Treat as participants but flag the limited time window.
+- **participant** — a seminar fellow. The primary audience of the interviewer.
+  Lives in `participants/`. ~26 people.
+- **visitor** — short-term drop-ins (e.g. Luc Brinkman, founder of Lens Academy
+  who makes the tech-tree app). Also in `participants/`; treat as participants
+  but flag the limited time window. ~5 people.
+- **mentor** / **external-speaker** — invited alignment researchers and
+  facilitators (Linda Linsefors, Kaarel Hänni, Ouro, Camille B., …; speakers
+  Abram Demski, Lucius, Plex). Live in `mentors/`. NOT fellow learners — they
+  are who fellows go to for technical feedback. Never suggest them as a
+  fellow/peer. ~9 people.
+- **event-team** — organizers, operations, facilitators (Sofie, Philip,
+  Pauliina, …). Live in `team/`. Never suggest as research collaborators;
+  surface them only for logistics, well-being, or community-design questions.
+  ~14 people.
 
-The `role:` field in each participant page's frontmatter is canonical. When the interviewer points one person at another, it MUST surface the role.
+The directory a page lives in is the canonical layer; the `role:` frontmatter
+records the specific role. When the interviewer points one person at another it
+MUST surface the role. `server/tools.py`'s `participant()` resolves a name
+across all three layers and prepends a "NOT a seminar fellow" banner for
+mentors/team so the model cannot mistake them for peers.
 
 ## Page conventions
 
@@ -174,7 +201,9 @@ The interviewer represents the AFFINE seminar to its own participants. A wrong c
 ## Builder scripts
 
 - `build_wiki/build_concepts.py` — generates `wiki/concepts/*.md`, `wiki/tags/*.md`, and `wiki/tree.md` from `raw/sheet/*.csv`. Deterministic; rerunnable.
-- `build_wiki/build_participants.py` — generates `wiki/participants/*.md` and `wiki/participants/index.md` from `raw/AFFINE Seminar - Names & Faces.txt`. Also auto-links each participant to tech-tree concepts via a fuzzy match (the `CONCEPT_ALIASES` map at the top of the script). The `enrichment/` subdirectory is preserved across rebuilds.
+- `build_wiki/build_participants.py` — generates person pages from `raw/AFFINE Seminar - Names & Faces.txt`, writing each page into the layer dir its role maps to (`role_to_dir()`: participant/visitor→`participants/`, mentor/external-speaker→`mentors/`, everything else→`team/`). Generates `participants/index.md` and `team/index.md`; **does NOT touch `mentors/index.md` or `mentors/matchmaker.md`** (hand-curated). Auto-links each person to tech-tree concepts via the `CONCEPT_ALIASES` fuzzy map. The `enrichment/` subdir is preserved across rebuilds. Rerunnable and durable — it will not move a page back out of `mentors/`/`team/`.
+- `build_wiki/build_backlinks.py` — scans all three people layers (`participants/`, `mentors/`, `team/`) for `../concepts/<slug>.md` links and writes the `<!-- BACKLINKS -->` block on each concept page, emitting `../<layer>/<slug>.md` per person. Idempotent.
+- `build_wiki/_migrate_split_people.py` — one-shot migration that performed the original participants→mentors/team split (move + wiki-wide relink). Kept for provenance; not part of the normal build.
 - `build_wiki/build_index.py` — TBD. Regenerates `wiki/index.md` from the current set of pages.
 
 Run them after dropping in new raw data:

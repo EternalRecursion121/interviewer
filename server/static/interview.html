@@ -1,6 +1,6 @@
 <main class="iv">
   <div class="iv-intro" id="introBlock">
-    <p class="iv-kicker">the interview</p>
+    <p class="iv-kicker">The interview</p>
     <h1>Let's have a <em>real</em> conversation.</h1>
     <p class="iv-lede">Two parts. First, a few optional questions so the interviewer
     isn't starting cold — answer what you like, skip the rest, skip all of it. Then
@@ -26,12 +26,12 @@
       <label for="f-time">How long do you have?</label>
       <span class="hint">It'll check in, not cut you off.</span>
       <select id="f-time" name="time">
-        <option value="">— decide later —</option>
+        <option value="">— Decide later —</option>
         <option value="15">~15 minutes</option>
         <option value="20" selected>~20 minutes</option>
         <option value="30">~30 minutes</option>
         <option value="45">~45 minutes</option>
-        <option value="0">no fixed limit</option>
+        <option value="0">No fixed limit</option>
       </select>
     </div>
 
@@ -48,38 +48,72 @@
     </div>
 
     <div class="form-foot">
-      <span class="form-note">every field is optional — you can submit this blank.</span>
+      <span class="form-note">Every field is optional — you can submit this blank.</span>
       <div>
-        <button type="button" class="btn btn-ghost" id="skipBtn">skip it all →</button>
-        <button type="submit" class="btn" id="beginBtn">begin the conversation</button>
+        <button type="button" class="btn btn-ghost" id="skipBtn">Skip it all →</button>
+        <button type="submit" class="btn" id="beginBtn">Begin the conversation</button>
       </div>
     </div>
   </form>
+
+  <section class="notes-upload" id="notesUpload">
+    <p class="iv-kicker">Optional · separate from the chat</p>
+    <h2 class="nu-head">Brought notes already? <em>Drop them in.</em></h2>
+    <p class="form-note nu-lede">Scratch notes, a doc, a folder of readings —
+    anything you've already written. It's stored as-is in
+    <code>unprocessed/</code> as raw material; it doesn't go through the
+    conversation, isn't summarised, and isn't published. Upload as much as you
+    like, before or instead of talking.</p>
+
+    <div class="dropzone" id="nDrop">
+      <p class="dz-big">Drag notes or a folder here</p>
+      <p class="dz-sub">Or pick them —</p>
+      <div class="dz-btns">
+        <label class="btn btn-ghost dz-pick">
+          Choose files
+          <input type="file" id="nFiles" multiple hidden>
+        </label>
+        <label class="btn btn-ghost dz-pick">
+          Choose a folder
+          <input type="file" id="nDir" webkitdirectory directory multiple hidden>
+        </label>
+      </div>
+    </div>
+
+    <ul class="up-list" id="nList"></ul>
+
+    <div class="form-foot">
+      <span class="form-note" id="nNote">Nothing selected yet</span>
+      <button type="button" class="btn" id="nBtn" disabled>Upload notes</button>
+    </div>
+
+    <div class="up-result" id="nResult" style="display:none"></div>
+  </section>
 
   <section class="chat" id="chat">
     <div class="transcript" id="transcript"></div>
     <div class="iv-status" id="status"></div>
     <div class="composer" id="composer">
-      <textarea id="input" rows="1" placeholder="say something…" disabled></textarea>
-      <button class="btn" id="sendBtn" disabled>send</button>
+      <textarea id="input" rows="1" placeholder="Say something…" disabled></textarea>
+      <button class="btn" id="sendBtn" disabled>Send</button>
     </div>
     <div class="form-foot" style="margin-top:.4rem">
-      <span class="form-note">when you're done, just say so — or</span>
-      <button type="button" class="btn btn-ghost" id="endBtn">end &amp; write the notes →</button>
+      <span class="form-note">When you're done, just say so — or</span>
+      <button type="button" class="btn btn-ghost" id="endBtn">End &amp; write the notes →</button>
     </div>
   </section>
 
   <section class="notes-stage" id="notesStage">
-    <p class="iv-kicker">your notes</p>
+    <p class="iv-kicker">Your notes</p>
     <h1>Read them. <em>Change</em> anything.</h1>
     <p class="notes-intro">These were written from your conversation. They're yours
     to correct, cut, or rewrite before they're filed. Nothing here is published —
     the operator asks before quoting anything publicly.</p>
     <textarea class="notes-edit" id="notesEdit" spellcheck="false"></textarea>
     <div class="notes-foot">
-      <button class="btn" id="saveNotesBtn">save my edits</button>
-      <span class="saved-flag" id="savedFlag" style="display:none">saved ✓</span>
-      <a class="btn btn-ghost" href="/wiki">done — take me to the wiki →</a>
+      <button class="btn" id="saveNotesBtn">Save my edits</button>
+      <span class="saved-flag" id="savedFlag" style="display:none">Saved ✓</span>
+      <a class="btn btn-ghost" href="/wiki">Done — take me to the wiki →</a>
     </div>
   </section>
 </main>

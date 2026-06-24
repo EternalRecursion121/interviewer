@@ -89,7 +89,6 @@ a { color: inherit; }
 .topnav { display: flex; gap: clamp(1rem, 3vw, 2.2rem); }
 .topnav a {
   font-size: 0.83rem;
-  text-transform: lowercase;
   letter-spacing: 0.12em;
   text-decoration: none;
   color: var(--ink-soft);
@@ -218,7 +217,7 @@ a { color: inherit; }
 }
 .door-d { font-size: clamp(0.98rem, 1.15vw, 1.08rem); color: var(--ink-soft); margin-bottom: 2rem; flex: 1; max-width: 30rem; }
 .door-go {
-  font-size: 0.84rem; letter-spacing: 0.14em; text-transform: lowercase;
+  font-size: 0.84rem; letter-spacing: 0.14em;
   color: var(--rust); align-self: flex-start;
 }
 .door-alt .door-go { color: var(--moss-deep); }
@@ -305,13 +304,17 @@ a { color: inherit; }
   font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.2em;
   color: var(--rust); margin-bottom: 1.6rem;
 }
+/* Groups (A, B, C ...) flow into responsive columns; the list inside each
+   group stays single-column so a name and its role stay on one row. */
+.layer-groups {
+  columns: 2; column-gap: 2.8rem;
+}
 .layer-list {
   list-style: none; margin: 0;
-  columns: 2; column-gap: 2.6rem;
 }
 .layer-list li {
-  break-inside: avoid; margin: 0 0 0.55rem;
-  padding-bottom: 0.55rem; border-bottom: 1px solid var(--line-soft);
+  break-inside: avoid; margin: 0 0 0.5rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft);
 }
 .layer-list a {
   text-decoration: none; color: var(--aubergine);
@@ -322,7 +325,7 @@ a { color: inherit; }
   font-family: var(--serif); font-style: italic;
   font-size: 0.82rem; color: var(--ink-soft); opacity: 0.7;
 }
-@media (max-width: 640px) { .layer-list { columns: 1; } }
+@media (max-width: 640px) { .layer-groups { columns: 1; } }
 .wiki-head {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 1rem; margin-bottom: 0.6rem;
@@ -514,7 +517,22 @@ a { color: inherit; }
   flex-direction: column; flex: 1;
 }
 .chat.active { display: flex; }
-.form-card.hidden, .iv-intro.hidden { display: none; }
+.form-card.hidden, .iv-intro.hidden, .notes-upload.hidden { display: none; }
+
+/* --- optional "bring your own notes" panel (interview intake) --- */
+.notes-upload {
+  margin-top: 2rem;
+  padding-top: 1.8rem;
+  border-top: 1px dashed var(--line);
+}
+.nu-head {
+  font-family: var(--serif); font-weight: 400;
+  font-size: clamp(1.4rem, 3.4vw, 1.95rem); line-height: 1.08;
+  color: var(--aubergine); letter-spacing: -0.015em; margin-bottom: 0.5rem;
+  font-variation-settings: "opsz" 96, "SOFT" 40;
+}
+.nu-head em { font-style: italic; color: var(--moss-deep); }
+.nu-lede { max-width: 36rem; margin-bottom: 1.4rem; line-height: 1.5; }
 
 .transcript {
   display: flex; flex-direction: column; gap: 1.5rem;
@@ -691,9 +709,302 @@ a { color: inherit; }
   .topnav { gap: 1.1rem; }
   .landing { padding-top: 2.6rem; min-height: 0; }
   .side-list { columns: 1; }
+  .layer-groups { columns: 1; }
+}
+
+/* ============================================================================
+   WIKI QoL — breadcrumbs · meta chips · citation chips · TOC rail ·
+   grouped/filterable listings · heading anchors · back-to-top
+   ========================================================================== */
+
+/* When a page has an "on this page" rail, add a third column for it.
+   Folds away below the tablet breakpoint (handled in the media queries). */
+.wiki-wrap.has-toc {
+  grid-template-columns: 16rem minmax(0, 1fr) 13rem;
+}
+.wiki-toc-col { position: relative; }
+
+/* --- breadcrumbs --- */
+.wiki-crumbs {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0.1rem 0 1.1rem;
+}
+.wiki-crumbs a {
+  color: var(--ink-soft); text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.wiki-crumbs a:hover { color: var(--rust); border-color: var(--rust); }
+.wiki-crumbs .bc-sep { color: var(--line); }
+.wiki-crumbs .bc-here {
+  color: var(--aubergine); font-weight: 500;
+}
+
+/* --- meta chips (surfaced frontmatter) --- */
+.meta-chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  margin: -0.6rem 0 1.9rem;
+}
+.chip {
+  font-size: 0.74rem; letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  background: rgba(61, 40, 57, 0.055);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  white-space: nowrap;
+}
+.chip-role {
+  color: var(--moss-deep);
+  background: rgba(111, 128, 80, 0.12);
+  border-color: rgba(111, 128, 80, 0.28);
+  font-weight: 500;
+}
+.chip-tag {
+  font-family: var(--serif); font-style: italic;
+  color: var(--aubergine);
+}
+.chip-src {
+  color: var(--rust);
+  border-color: rgba(192, 73, 42, 0.3);
+  cursor: help;
+}
+
+/* --- inline citation chip ([src: ...] kept intact, just quieted) --- */
+.cite {
+  display: inline;
+  font-size: 0.82em;
+  color: var(--ink-soft);
+}
+.cite-k {
+  font-family: var(--sans);
+  font-size: 0.72em; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--rust);
+  background: rgba(192, 73, 42, 0.10);
+  border-radius: 4px 0 0 4px;
+  padding: 0.12em 0.34em 0.1em;
+  border: 1px solid rgba(192, 73, 42, 0.22);
+  border-right: none;
+}
+.cite-v {
+  background: rgba(61, 40, 57, 0.05);
+  border: 1px solid var(--line-soft);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  padding: 0.12em 0.42em 0.1em;
+  word-break: break-word;
+}
+.cite-v a {
+  color: var(--ink-soft) !important;
+  border-bottom: 1px dotted rgba(91, 74, 87, 0.5) !important;
+}
+.cite-v a:hover {
+  color: var(--rust) !important;
+  background: rgba(192, 73, 42, 0.08) !important;
+}
+
+/* --- "on this page" rail --- */
+.wiki-toc {
+  position: sticky; top: 5rem;
+  font-size: 0.84rem;
+  border-left: 1px solid var(--line-soft);
+  padding-left: 1rem;
+}
+.toc-cap {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--rust); margin-bottom: 0.7rem;
+}
+.toc-list { list-style: none; margin: 0; }
+.toc-list li { margin: 0.12rem 0; line-height: 1.35; }
+.toc-list a {
+  display: block;
+  text-decoration: none;
+  color: var(--ink-soft);
+  padding: 0.16rem 0.45rem;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  transition: color .14s, background .14s, border-color .14s;
+}
+.toc-list a:hover { color: var(--aubergine); background: rgba(111,128,80,0.09); }
+.toc-list a.active {
+  color: var(--aubergine); font-weight: 500;
+  border-left-color: var(--rust);
+  background: rgba(192, 73, 42, 0.07);
+}
+.toc-list .toc-3 a {
+  padding-left: 1.2rem;
+  font-size: 0.96em;
+  color: var(--ink-soft);
+}
+
+/* --- heading anchor affordance --- */
+.wiki-body h2, .wiki-body h3 { scroll-margin-top: 5rem; position: relative; }
+.h-anchor {
+  margin-left: 0.45rem;
+  font-family: var(--sans);
+  font-size: 0.7em; font-weight: 600;
+  color: var(--rust);
+  border: none !important;
+  opacity: 0;
+  text-decoration: none;
+  transition: opacity .15s;
+}
+.wiki-body h2:hover .h-anchor,
+.wiki-body h3:hover .h-anchor,
+.h-anchor:focus { opacity: 0.7; }
+.h-anchor:hover { opacity: 1 !important; background: none !important; }
+
+/* --- grouped + filterable layer listings --- */
+.layer-filter { margin: 0 0 1.7rem; display: flex; align-items: baseline; gap: 0.8rem; }
+.layer-filter input {
+  font-family: var(--sans); font-size: 0.95rem; color: var(--ink);
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  width: min(22rem, 100%);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.layer-filter input:focus {
+  outline: none; border-color: var(--moss);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(111, 128, 80, 0.15);
+}
+.layer-filter-empty {
+  font-family: var(--serif); font-style: italic;
+  color: var(--ink-soft); font-size: 0.9rem;
+}
+.layer-group {
+  margin-bottom: 1.6rem;
+  break-inside: avoid;
+}
+.layer-group[hidden] { display: none; }
+.layer-letter {
+  font-family: var(--serif); font-style: italic;
+  font-size: 1.05rem; color: var(--rust);
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.layer-item[hidden] { display: none; }
+.layer-item .ldim {
+  font-family: var(--serif); font-style: italic;
+  font-size: 0.82rem; color: var(--ink-soft); opacity: 0.72;
+}
+
+/* --- back to top --- */
+.back-to-top {
+  position: fixed; right: clamp(1rem, 4vw, 2.4rem); bottom: 1.6rem;
+  z-index: 40;
+  font-size: 0.78rem; letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  background: rgba(244, 236, 221, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none; transform: translateY(8px);
+  transition: opacity .2s, transform .2s, color .15s, border-color .15s;
+}
+.back-to-top.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.back-to-top:hover { color: var(--rust); border-color: var(--rust); }
+
+/* --- responsive: fold the TOC + soften the new bits on small screens --- */
+@media (max-width: 1180px) {
+  .wiki-wrap.has-toc { grid-template-columns: 16rem minmax(0, 1fr); }
+  .wiki-toc-col { display: none; }
+}
+@media (max-width: 980px) {
+  .wiki-wrap.has-toc { grid-template-columns: 1fr; }
+  .wiki-crumbs { font-size: 0.74rem; }
   .layer-list { columns: 1; }
+}
+@media (max-width: 720px) {
+  .meta-chips { margin-bottom: 1.4rem; }
+  .layer-filter input { width: 100%; }
+  .back-to-top { bottom: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto; }
 }
+
+/* ============================================================================
+   WIKI HOME — human front door (distinct from the machine catalogue)
+   ========================================================================== */
+
+.home-lede {
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 1.7vw, 1.4rem);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 40rem;
+  margin: 0.2rem 0 1.6rem;
+}
+.home-cta {
+  display: flex; flex-wrap: wrap; gap: 0.8rem;
+  margin-bottom: 2.8rem;
+}
+.home-h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+  color: var(--rust);
+  margin: 2.4rem 0 1.1rem;
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.9rem;
+}
+.home-card {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  text-decoration: none;
+  color: var(--ink);
+  background: linear-gradient(168deg, rgba(244,236,221,0.85), rgba(244,236,221,0.55));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  transition: transform .18s cubic-bezier(.2,.7,.3,1), box-shadow .18s, border-color .18s;
+}
+.home-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-soft);
+  border-color: rgba(61,40,57,0.32);
+}
+.home-card-h {
+  font-family: var(--serif);
+  font-size: 1.18rem;
+  color: var(--aubergine);
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+.home-card-n {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--rust);
+  background: rgba(192,73,42,0.10);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+.home-card-d {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.home-foot {
+  margin-top: 2.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line-soft);
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.home-foot a { color: var(--moss-deep); }

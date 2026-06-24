@@ -21,7 +21,10 @@ from config import WIKI_DIR
 
 # Subdirectories that hold a "kind" of page. Used by the search `type` filter
 # and by follow()'s container search.
-CONTAINERS = ("concepts", "participants", "themes", "talks", "tags", "mentors", "sources")
+CONTAINERS = ("concepts", "participants", "mentors", "team", "themes", "talks", "tags", "sources")
+
+# People live in one of three layers by role.
+PEOPLE_DIRS = ("participants", "mentors", "team")
 
 # search `type` value -> subdir
 _TYPE_TO_DIR = {
@@ -31,6 +34,7 @@ _TYPE_TO_DIR = {
     "talk": "talks",
     "tag": "tags",
     "mentor": "mentors",
+    "team": "team",
     "source": "sources",
 }
 
@@ -275,27 +279,32 @@ def follow(reference: str) -> str:
 
 @lru_cache(maxsize=1)
 def _participant_index() -> dict[str, str]:
-    """Map lowercased name / first-name / slug -> slug. Cached (cohort is static)."""
+    """Map lowercased name / first-name / slug -> 'dir/slug'.
+
+    Scans all three people layers (participants/, mentors/, team/). participants/
+    is scanned first so an ambiguous bare name resolves to a fellow over a
+    same-named mentor/team member. Cached (the cohort is static)."""
     index: dict[str, str] = {}
-    pdir = WIKI_DIR / "participants"
-    if not pdir.is_dir():
-        return index
-    for p in pdir.glob("*.md"):
-        if p.stem in ("index", "auto-match-review"):
+    for d in PEOPLE_DIRS:
+        pdir = WIKI_DIR / d
+        if not pdir.is_dir():
             continue
-        slug = p.stem
-        index.setdefault(slug.lower(), slug)
-        index.setdefault(slug.replace("-", " ").lower(), slug)
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        name = _frontmatter_title(text)
-        if name:
-            index.setdefault(name.lower(), slug)
-            parts = name.split()
-            if parts:
-                index.setdefault(parts[0].lower(), slug)  # first-name fallback
+        for p in sorted(pdir.glob("*.md")):
+            if p.stem in ("index", "auto-match-review", "matchmaker"):
+                continue
+            rel = f"{d}/{p.stem}"
+            index.setdefault(p.stem.lower(), rel)
+            index.setdefault(p.stem.replace("-", " ").lower(), rel)
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            name = _frontmatter_title(text)
+            if name:
+                index.setdefault(name.lower(), rel)
+                parts = name.split()
+                if parts:
+                    index.setdefault(parts[0].lower(), rel)  # first-name fallback
     return index
 
 
@@ -324,20 +333,31 @@ def participant(name_or_handle: str) -> str:
         return "participant: empty input"
     index = _participant_index()
 
-    slug = index.get(needle)
-    if not slug:
+    rel = index.get(needle)
+    if not rel:
         for k, v in index.items():
             if needle in k:
-                slug = v
+                rel = v
                 break
-    if not slug:
+    if not rel:
         return (
             f"participant: no match for {name_or_handle!r}. "
             "Try `search` with their name to find references elsewhere in the wiki, "
             "or ask them how they'd like to be looked up."
         )
 
-    page = open_page(f"participants/{slug}.md")
+    layer, slug = rel.split("/", 1)
+    page = open_page(f"{rel}.md")
+
+    # Surface the role up front — the interviewer MUST honor the distinction
+    # between a seminar fellow, a mentor, and event team (see CLAUDE.md).
+    rm = re.search(r"^role:\s*(.+?)\s*$", page, re.M)
+    role = (rm.group(1).strip() if rm else
+            {"mentors": "mentor", "team": "event-team"}.get(layer, "participant"))
+    if layer != "participants" or role not in ("participant", "visitor"):
+        page = (f"**[{role} — NOT a seminar fellow. Don't suggest them as a "
+                f"research collaborator or peer; surface the {role} role "
+                f"explicitly.]**\n\n" + page)
 
     # Append pod assignment if we can find one by display name.
     pods = _pod_table()

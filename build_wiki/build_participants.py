@@ -17,8 +17,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "raw" / "AFFINE Seminar - Names & Faces.txt"
-WIKI = ROOT / "wiki" / "participants"
+WIKI_ROOT = ROOT / "wiki"
+WIKI = WIKI_ROOT / "participants"
 CONCEPTS_DIR = ROOT / "wiki" / "concepts"
+
+
+def role_to_dir(role_section: str) -> str:
+    """People are split across three layers by role. Keep in sync with
+    server/tools.py PEOPLE_DIRS and the migration script."""
+    if role_section in ("mentor", "external-speaker"):
+        return "mentors"
+    if role_section in ("participant", "visitor"):
+        return "participants"
+    return "team"  # event-team + any ops/volunteer/lead/job-title role
 TOPICS_CSV = ROOT / "raw" / "sheet" / "Topics.csv"
 TODAY = date.today().isoformat()
 
@@ -472,97 +483,114 @@ def render_participant(p: dict, concept_slugs: dict[str, str]) -> str:
 
 
 def write_participants_index(parsed: list[dict]) -> None:
-    """Group by role_section into an index page."""
-    by_section: dict[str, list[dict]] = {}
-    for p in parsed:
-        by_section.setdefault(p["role_section"], []).append(p)
+    """Generate one index per people layer.
 
-    order = [DEFAULT_ROLE, "mentor", "event-team", "visitor"]
+    People are split across three sibling dirs by role (see role_to_dir):
+      participants/  fellows + visitors      -> participants/index.md (generated)
+      team/          event team + ops/leads  -> team/index.md         (generated)
+      mentors/       mentors + ext-speakers  -> mentors/index.md is HAND-CURATED
+                     (alongside matchmaker.md) and is intentionally NOT written
+                     here; the migration keeps its links correct.
+    """
+    import re as _re
+
     pretty = {
         DEFAULT_ROLE: "Participants",
-        "mentor": "Mentors",
-        "event-team": "Event Team",
         "visitor": "Visitors",
+        "event-team": "Event Team",
     }
-
-    lines: list[str] = []
-    lines.append("---")
-    lines.append("title: Participants index")
-    lines.append("type: overview")
-    lines.append("sources:")
-    lines.append('  - "raw/AFFINE Seminar - Names & Faces.txt"')
-    lines.append(f"last_updated: {TODAY}")
-    lines.append("generated: true")
-    lines.append("---")
-    lines.append("")
-    lines.append("# Participants")
-    lines.append("")
-    lines.append(
-        "Everyone who introduced themselves in the AFFINE 2026 seminar's intro deck. "
-        "Pages below reproduce only what each person wrote about themselves; deeper "
-        "details will accumulate as interviews happen."
-    )
-    lines.append("")
-
-    intro_slugs: set[str] = set()
-    for section in order:
-        members = by_section.get(section, [])
-        if not members:
-            continue
-        lines.append(f"## {pretty[section]} ({len(members)})")
-        lines.append("")
-        for p in sorted(members, key=lambda p: p["name"].lower()):
-            slug = slugify(p["name"])
-            intro_slugs.add(slug)
-            tagline_bits = []
-            if p["meta"].get("based_in"):
-                tagline_bits.append(p["meta"]["based_in"])
-            if p["role_inline"]:
-                tagline_bits.append(p["role_inline"])
-            tagline = " — " + " · ".join(tagline_bits) if tagline_bits else ""
-            lines.append(f"- [{p['name']}]({slug}.md){tagline}")
-        lines.append("")
-
-    extras_by_role: dict[str, list[tuple[str, str]]] = {}
-    if WIKI.exists():
-        import re as _re
-        for path in sorted(WIKI.glob("*.md")):
-            if path.name in {"index.md", "auto-match-review.md"}:
-                continue
-            if path.stem in intro_slugs:
-                continue
-            md = path.read_text(encoding="utf-8")
-            m = _re.search(r"^title:\s*(.+?)\s*$", md, _re.M)
-            display = m.group(1) if m else path.stem
-            rm = _re.search(r"^role:\s*(.+?)\s*$", md, _re.M)
-            role = (rm.group(1) if rm else "external").strip()
-            extras_by_role.setdefault(role, []).append((display, path.stem))
-
-    extras_order = [DEFAULT_ROLE, "mentor", "event-team", "visitor", "external-speaker"]
     extras_labels = {
         DEFAULT_ROLE: "Additional participants (intro added after the deck)",
-        "mentor": "Additional mentors",
-        "event-team": "Additional event team",
         "visitor": "Additional visitors",
+        "event-team": "Additional event team",
+        "mentor": "Additional mentors",
         "external-speaker": "External speakers / facilitators (no intro form)",
     }
-    seen_roles: set[str] = set()
-    for role in extras_order + [r for r in extras_by_role if r not in extras_order]:
-        people = extras_by_role.get(role, [])
-        if not people or role in seen_roles:
-            continue
-        seen_roles.add(role)
-        label = extras_labels.get(role, f"Other ({role})")
-        lines.append(f"## {label} ({len(people)})")
-        lines.append("")
-        if role not in {DEFAULT_ROLE, "mentor", "event-team", "visitor"}:
-            lines.append("_No self-intro on the AFFINE form. The interviewer should treat the absence as significant — ask open questions rather than reflecting back stated motivations._")
-            lines.append("")
-        for display, slug in sorted(people, key=lambda x: x[0].lower()):
-            lines.append(f"- [{display}]({slug}.md)")
-        lines.append("")
+    soft_roles = {DEFAULT_ROLE, "mentor", "event-team", "visitor"}
 
-    (WIKI / "index.md").write_text("\n".join(lines), encoding="utf-8")
+    # Every raw-derived slug, so per-dir extra scans can skip them.
+    all_intro_slugs = {slugify(p["name"]) for p in parsed}
+
+    layers = [
+        ("participants", "Participants index", "Participants",
+         "Seminar fellows (and visitors, treated as participants). Pages "
+         "reproduce what each person wrote about themselves plus what later "
+         "sources add.", [DEFAULT_ROLE, "visitor"]),
+        ("team", "Event team index", "Event team",
+         "Organizers, operations, and facilitators. Surface these for "
+         "logistics, well-being, or community-design questions — NOT as "
+         "research collaborators.", ["event-team"]),
+    ]
+
+    for dirname, title, heading, blurb, section_order in layers:
+        by_section: dict[str, list[dict]] = {}
+        for p in parsed:
+            if role_to_dir(p["role_section"]) != dirname:
+                continue
+            by_section.setdefault(p["role_section"], []).append(p)
+
+        lines = [
+            "---",
+            f"title: {title}",
+            "type: overview",
+            "sources:",
+            '  - "raw/AFFINE Seminar - Names & Faces.txt"',
+            f"last_updated: {TODAY}",
+            "generated: true",
+            "---",
+            "",
+            f"# {heading}",
+            "",
+            blurb,
+            "",
+        ]
+
+        for section in section_order:
+            members = by_section.get(section, [])
+            if not members:
+                continue
+            lines.append(f"## {pretty[section]} ({len(members)})")
+            lines.append("")
+            for p in sorted(members, key=lambda p: p["name"].lower()):
+                slug = slugify(p["name"])
+                bits = []
+                if p["meta"].get("based_in"):
+                    bits.append(p["meta"]["based_in"])
+                if p["role_inline"]:
+                    bits.append(p["role_inline"])
+                tag = " — " + " · ".join(bits) if bits else ""
+                lines.append(f"- [{p['name']}]({slug}.md){tag}")
+            lines.append("")
+
+        # Hand-managed extra pages physically in this dir (not from the deck).
+        extras_by_role: dict[str, list[tuple[str, str]]] = {}
+        ddir = WIKI_ROOT / dirname
+        if ddir.exists():
+            for path in sorted(ddir.glob("*.md")):
+                if path.name in {"index.md", "auto-match-review.md", "matchmaker.md"}:
+                    continue
+                if path.stem in all_intro_slugs:
+                    continue
+                md = path.read_text(encoding="utf-8")
+                m = _re.search(r"^title:\s*(.+?)\s*$", md, _re.M)
+                display = m.group(1) if m else path.stem
+                rm = _re.search(r"^role:\s*(.+?)\s*$", md, _re.M)
+                role = (rm.group(1) if rm else "external").strip()
+                extras_by_role.setdefault(role, []).append((display, path.stem))
+
+        for role in sorted(extras_by_role):
+            ppl = extras_by_role[role]
+            label = extras_labels.get(role, f"Other ({role})")
+            lines.append(f"## {label} ({len(ppl)})")
+            lines.append("")
+            if role not in soft_roles:
+                lines.append("_No self-intro on the AFFINE form. The interviewer should treat the absence as significant — ask open questions rather than reflecting back stated motivations._")
+                lines.append("")
+            for display, slug in sorted(ppl, key=lambda x: x[0].lower()):
+                lines.append(f"- [{display}]({slug}.md)")
+            lines.append("")
+
+        (WIKI_ROOT / dirname / "index.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
@@ -599,7 +627,8 @@ def main() -> None:
 
     concept_slugs = load_concept_slugs()
 
-    WIKI.mkdir(parents=True, exist_ok=True)
+    for d in ("participants", "mentors", "team"):
+        (WIKI_ROOT / d).mkdir(parents=True, exist_ok=True)
     slugs_seen: dict[str, str] = {}
     for p in parsed:
         rendered, slug = render_participant(p, concept_slugs)
@@ -609,7 +638,8 @@ def main() -> None:
                 i += 1
             slug = f"{slug}-{i}"
         slugs_seen[slug] = p["name"]
-        upsert_intro(WIKI / f"{slug}.md", rendered)
+        out_dir = WIKI_ROOT / role_to_dir(p["role_section"])
+        upsert_intro(out_dir / f"{slug}.md", rendered)
 
     write_participants_index(parsed)
     print(f"Generated {len(parsed)} participant intro blocks + index.")

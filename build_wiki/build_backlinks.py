@@ -54,18 +54,23 @@ def participant_role(participant_md: str) -> str:
 def collect() -> dict[str, list[dict]]:
     """concept_slug → [{slug, name, role}, ...]"""
     out: dict[str, list[dict]] = defaultdict(list)
-    for path in sorted(PARTICIPANTS.glob("*.md")):
-        if path.name == "index.md":
+    for dirname in ("participants", "mentors", "team"):
+        ddir = ROOT / "wiki" / dirname
+        if not ddir.is_dir():
             continue
-        md = path.read_text(encoding="utf-8")
-        for cslug in extract_concept_links(md):
-            out[cslug].append(
-                {
-                    "slug": path.stem,
-                    "name": participant_name(md, path.stem),
-                    "role": participant_role(md),
-                }
-            )
+        for path in sorted(ddir.glob("*.md")):
+            if path.name in ("index.md", "auto-match-review.md", "matchmaker.md"):
+                continue
+            md = path.read_text(encoding="utf-8")
+            for cslug in extract_concept_links(md):
+                out[cslug].append(
+                    {
+                        "slug": path.stem,
+                        "name": participant_name(md, path.stem),
+                        "role": participant_role(md),
+                        "dir": dirname,
+                    }
+                )
     return out
 
 
@@ -132,7 +137,7 @@ def render_block(
             lines.append(f"### {label}")
             lines.append("")
             for p in sorted(ppl, key=lambda p: p["name"].lower()):
-                lines.append(f"- [{p['name']}](../participants/{p['slug']}.md)")
+                lines.append(f"- [{p['name']}](../{p.get('dir', 'participants')}/{p['slug']}.md)")
             lines.append("")
     if themes:
         lines.append("### Themes that touch this concept")

@@ -17,6 +17,9 @@
 /wiki/
 /raw/
 
+CLAUDE.md
+WIKI_AUDIT.md
+
 # tooling / local
 .superpowers/
 server/.env

@@ -17,6 +17,7 @@
   var endBtn = $("endBtn");
   var notesStage = $("notesStage");
   var notesEdit = $("notesEdit");
+  var notesUpload = $("notesUpload");
 
   /* ---- tiny safe markdown (escape, then **bold** *italic* paras) -------- */
   function esc(s) {
@@ -196,6 +197,7 @@
   function begin(payload) {
     introBlock.classList.add("hidden");
     form.classList.add("hidden");
+    if (notesUpload) notesUpload.classList.add("hidden");
     chat.classList.add("active");
     runTurn("/api/sessions/start-stream", payload);
   }
@@ -269,4 +271,90 @@
       })
       .finally(function () { btn.disabled = false; });
   });
+
+  /* ---- bring-your-own-notes bulk upload (optional, raw → unprocessed/) --- */
+  (function notesUploader() {
+    var drop = $("nDrop");
+    if (!drop) return;
+    var picked = [];
+    var listEl = $("nList"), note = $("nNote"), btn = $("nBtn"), result = $("nResult");
+
+    function fmtBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+    function add(files) {
+      for (var i = 0; i < files.length; i++) {
+        picked.push({ file: files[i], rel: files[i].webkitRelativePath || files[i].name });
+      }
+      render();
+    }
+    function render() {
+      listEl.innerHTML = "";
+      var total = 0;
+      picked.forEach(function (p, idx) {
+        total += p.file.size;
+        var li = document.createElement("li");
+        var nm = document.createElement("span");
+        nm.className = "up-name"; nm.textContent = p.rel;
+        var sz = document.createElement("span");
+        sz.className = "up-sz"; sz.textContent = fmtBytes(p.file.size);
+        var x = document.createElement("button");
+        x.type = "button"; x.className = "up-x"; x.textContent = "✕";
+        x.onclick = function () { picked.splice(idx, 1); render(); };
+        li.appendChild(nm); li.appendChild(sz); li.appendChild(x);
+        listEl.appendChild(li);
+      });
+      if (picked.length) {
+        note.textContent = picked.length + " item(s) · " + fmtBytes(total);
+        btn.disabled = false;
+      } else {
+        note.textContent = "nothing selected yet";
+        btn.disabled = true;
+      }
+    }
+    $("nFiles").addEventListener("change", function (e) { add(e.target.files); e.target.value = ""; });
+    $("nDir").addEventListener("change", function (e) { add(e.target.files); e.target.value = ""; });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+    });
+    drop.addEventListener("drop", function (e) {
+      if (e.dataTransfer && e.dataTransfer.files) add(e.dataTransfer.files);
+    });
+    btn.addEventListener("click", function () {
+      if (!picked.length) return;
+      btn.disabled = true;
+      var prev = btn.textContent;
+      btn.textContent = "uploading…";
+      var who = ($("f-name").value || "").trim();
+      var fd = new FormData();
+      fd.append("label", who ? ("interview-notes " + who) : "interview-notes");
+      picked.forEach(function (p) {
+        fd.append("files", p.file, p.file.name);
+        fd.append("rel_paths", p.rel);
+      });
+      fetch("/api/upload", { method: "POST", body: fd })
+        .then(function (r) { return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j.detail || ("HTTP " + r.status)); return j; }); })
+        .then(function (j) {
+          picked = []; render();
+          btn.textContent = prev;
+          result.style.display = "block";
+          result.innerHTML =
+            '<p class="form-note">filed ' + j.file_count +
+            " item(s) → <code>unprocessed/uploads/" + j.batch +
+            "/</code> — raw, unprocessed. Drop more any time.</p>";
+        })
+        .catch(function (err) {
+          btn.disabled = false; btn.textContent = prev;
+          result.style.display = "block";
+          result.innerHTML = '<p class="form-note">upload failed: ' +
+            ((err && err.message) || err) + "</p>";
+        });
+    });
+  })();
 })();

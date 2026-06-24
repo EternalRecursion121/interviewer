@@ -33,7 +33,7 @@ from transcripts import (
     save_transcript,
     write_notes,
 )
-from wiki_render import list_dir, render_page
+from wiki_render import _LAYER_BLURB, list_dir, render_page
 
 SESSIONS: dict[str, Session] = {}
 CLIENT = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
@@ -67,15 +67,15 @@ _HEAD = """<!doctype html>
 _NAV = """<header class="topbar">
   <a class="wordmark" href="/">AFFINE<span class="wordmark-sub">·2026</span></a>
   <nav class="topnav">
-    <a href="/wiki">the wiki</a>
-    <a href="/interview">the interview</a>
-    <a href="/contribute">contribute</a>
+    <a href="/wiki">The wiki</a>
+    <a href="/interview">The interview</a>
+    <a href="/contribute">Contribute</a>
   </nav>
 </header>
 """
 
 _FOOT = """<footer class="sitefoot">
-  <span>AFFINE 2026 · a living wiki + a two-way interview</span>
+  <span>AFFINE 2026 · A living wiki + a two-way interview</span>
   <span class="foot-mark">— Hostačov</span>
 </footer>
 </body></html>"""
@@ -98,30 +98,32 @@ _LANDING = """
 <div class="landing-glow glow-c"></div>
 <main class="landing">
   <section class="landing-hero">
-    <p class="landing-greeting">welcome, friend —</p>
-    <h1 class="landing-title">a garden of<br><em>alignment</em> ideas.</h1>
+    <p class="landing-greeting">Welcome, friend —</p>
+    <h1 class="landing-title">A garden of<br><em>alignment</em> ideas.</h1>
     <p class="landing-lede">A living wiki for the AFFINE 2026 seminar — the
     concept tree, the people, the talks, the threads — and a two-way conversation
     about what you care about, what you want to know, and what you're worried
     about regarding the future. Wander it, or sit and talk.</p>
   </section>
   <section class="doors">
-    <a class="door" href="/wiki">
+    <a class="door" href="/interview">
       <span class="door-k">I.</span>
-      <span class="door-h">Wander the wiki</span>
-      <span class="door-d">Seventy-five concepts, fifty-seven people, the talks,
-      the themes — cross-linked and citation-grounded. Follow whatever pulls you.</span>
-      <span class="door-go">enter the garden →</span>
-    </a>
-    <a class="door door-alt" href="/interview">
-      <span class="door-k">II.</span>
       <span class="door-h">Sit with the interviewer</span>
-      <span class="door-d">A conversation grounded in everything above. It has
-      read the whole wiki, so it can talk specifics — people, concepts, talks.</span>
-      <span class="door-go">begin the conversation →</span>
+      <span class="door-d">A conversation grounded in the whole wiki — it can talk
+      specifics: people, concepts, talks — about what you care about and what
+      you're worried about.</span>
+      <span class="door-go">Begin the conversation →</span>
+    </a>
+    <a class="door door-alt" href="/wiki">
+      <span class="door-k">II.</span>
+      <span class="door-h">Wander the wiki</span>
+      <span class="door-d">Seventy-five concepts, the cohort — fellows, mentors,
+      team — the talks, the themes, cross-linked and citation-grounded. Follow
+      whatever pulls you.</span>
+      <span class="door-go">Enter the garden →</span>
     </a>
   </section>
-  <p class="landing-foot-line">built citation-first · every claim traces to a
+  <p class="landing-foot-line">Built citation-first · every claim traces to a
   raw source · the interviewer can't make things up</p>
 </main>
 """
@@ -145,11 +147,12 @@ _WIKI_START = [
 ]
 _WIKI_LAYERS = [
     ("Concepts", "/wiki/concepts/", "75"),
-    ("Participants", "/wiki/participants/", "57"),
+    ("Participants", "/wiki/participants/", "31"),
+    ("Mentors", "/wiki/mentors/", "9"),
+    ("Team", "/wiki/team/", "14"),
     ("Themes", "/wiki/themes/", "14"),
     ("Talks", "/wiki/talks/", "27"),
     ("Tags", "/wiki/tags/", "5"),
-    ("Mentors", "/wiki/mentors/", ""),
     ("Sources", "/wiki/sources/", ""),
 ]
 
@@ -174,20 +177,85 @@ def _wiki_sidebar(active: str) -> str:
     return f"""
 <aside class="wiki-side">
   <div class="side-sticky">
-    <p class="side-cap">start here</p>
+    <p class="side-cap">Start here</p>
     <ul class="side-list">{start}</ul>
-    <p class="side-cap">wander a layer</p>
+    <p class="side-cap">Wander a layer</p>
     <ul class="side-list">{layers}</ul>
-    <a class="side-talk" href="/interview">↳ or talk to the interviewer</a>
+    <a class="side-talk" href="/interview">↳ Or talk to the interviewer</a>
   </div>
 </aside>
 """
 
 
-def _wiki_frame(active: str, title: str, kicker: str, meta: str,
-                home: str, content_html: str) -> str:
+# Pretty labels for layer folder segments shown in the breadcrumb trail.
+_LAYER_LABEL = {
+    "concepts": "Concepts",
+    "participants": "Participants",
+    "mentors": "Mentors",
+    "team": "Team",
+    "themes": "Themes",
+    "talks": "Talks",
+    "tags": "Tags",
+    "sources": "Sources",
+}
+
+
+def _breadcrumbs(page_rel: str, *, is_index: bool, is_layer: bool) -> str:
+    """A "you are here / up to <layer>" trail so a reader is never stranded."""
+    crumbs = ['<a href="/wiki">the wiki</a>']
+    rel = page_rel.strip("/").removesuffix(".md")
+    parts = [p for p in rel.split("/") if p and p != "index"]
+    if not is_index and parts:
+        # Folder segments become links; the final leaf is plain text.
+        for i, seg in enumerate(parts):
+            last = i == len(parts) - 1
+            label = _LAYER_LABEL.get(seg, seg.replace("-", " "))
+            if last and not is_layer:
+                crumbs.append(
+                    f'<span class="bc-here">{html.escape(label)}</span>'
+                )
+            else:
+                href = "/wiki/" + "/".join(parts[: i + 1])
+                if seg in _LAYER_LABEL:
+                    href = href.rstrip("/") + "/"
+                crumbs.append(
+                    f'<a href="{href}">{html.escape(label)}</a>'
+                )
+    sep = '<span class="bc-sep">→</span>'
+    return (
+        '<nav class="wiki-crumbs" aria-label="breadcrumb">'
+        + sep.join(crumbs)
+        + "</nav>"
+    )
+
+
+def _toc_rail(toc: list) -> str:
+    """An 'on this page' rail for long pages (>= 4 sub-headings)."""
+    if not toc or len(toc) < 4:
+        return ""
+    items = []
+    for level, anchor, text in toc:
+        cls = "toc-2" if level == 2 else "toc-3"
+        items.append(
+            f'<li class="{cls}"><a href="#{html.escape(anchor)}">'
+            f"{html.escape(text)}</a></li>"
+        )
     return f"""
-<div class="wiki-wrap">
+<nav class="wiki-toc" aria-label="on this page">
+  <p class="toc-cap">On this page</p>
+  <ul class="toc-list">{"".join(items)}</ul>
+</nav>
+"""
+
+
+def _wiki_frame(active: str, title: str, kicker: str, meta: str,
+                home: str, content_html: str, *, crumbs: str = "",
+                chips: str = "", toc_rail: str = "") -> str:
+    aside_toc = (
+        f'<div class="wiki-toc-col">{toc_rail}</div>' if toc_rail else ""
+    )
+    return f"""
+<div class="wiki-wrap{' has-toc' if toc_rail else ''}">
   {_wiki_sidebar(active)}
   <main class="wiki-main">
     <article class="wiki-article">
@@ -195,15 +263,19 @@ def _wiki_frame(active: str, title: str, kicker: str, meta: str,
         <p class="wiki-kicker">{html.escape(kicker)}</p>
         {home}
       </div>
+      {crumbs}
       <div class="wiki-title-row">
         <h1>{html.escape(title)}</h1>
         {meta}
       </div>
+      {chips}
       <div class="wiki-body">
         {content_html}
       </div>
+      <a class="back-to-top" href="#" aria-label="back to top">↑ Top</a>
     </article>
   </main>
+  {aside_toc}
 </div>
 """
 
@@ -216,8 +288,8 @@ def _wiki_view(page_rel: str) -> HTMLResponse:
         rendered = list_dir(page_rel)
     if rendered is None:
         body = _wiki_frame(
-            page_rel, "Nothing here", "not found", "",
-            '<a class="wiki-home" href="/wiki">← wiki index</a>',
+            page_rel, "Nothing here", "Not found", "",
+            '<a class="wiki-home" href="/wiki">← Wiki index</a>',
             f"<p>There's no wiki page or layer at <code>{html.escape(page_rel)}</code>. "
             'Wander back to the <a href="/wiki">index</a>, or pick a layer on the left.</p>',
         )
@@ -230,19 +302,106 @@ def _wiki_view(page_rel: str) -> HTMLResponse:
     title = str(fm.get("title") or page_rel)
     ptype = str(fm.get("type") or "")
     updated = str(fm.get("last_updated") or "")
-    is_index = page_rel.strip("/").rstrip(".md") in ("index", "")
+    is_layer = bool(fm.get("_is_layer"))
+    is_index = page_rel.strip("/").removesuffix(".md") in ("index", "")
 
-    kicker = "the wiki" if is_index else (ptype or "page")
-    meta = f'<span class="wiki-updated">updated {html.escape(updated)}</span>' if updated else ""
-    home = "" if is_index else '<a class="wiki-home" href="/wiki">← wiki index</a>'
+    kicker = "The wiki" if is_index else (ptype or "Page")
+    meta = f'<span class="wiki-updated">Updated {html.escape(updated)}</span>' if updated else ""
+    home = "" if is_index else '<a class="wiki-home" href="/wiki">← Wiki index</a>'
+    crumbs = "" if is_index else _breadcrumbs(
+        page_rel, is_index=is_index, is_layer=is_layer
+    )
+    chips = str(fm.get("_meta_chips") or "")
+    toc_rail = _toc_rail(fm.get("_toc") or [])
 
-    body = _wiki_frame(page_rel, title, kicker, meta, home, content_html)
-    return HTMLResponse(shell(f"{title} · AFFINE wiki", body, body_class="page-wiki"))
+    body = _wiki_frame(
+        page_rel, title, kicker, meta, home, content_html,
+        crumbs=crumbs, chips=chips, toc_rail=toc_rail,
+    )
+    # A focused <title>: leaf · Layer · AFFINE wiki when we can tell the layer.
+    seg = page_rel.strip("/").split("/")
+    layer = _LAYER_LABEL.get(seg[0]) if len(seg) > 1 else None
+    if is_index:
+        tab = "AFFINE wiki — The index"
+    elif layer and not is_layer:
+        tab = f"{title} · {layer} · AFFINE wiki"
+    else:
+        tab = f"{title} · AFFINE wiki"
+    extra_body = (
+        '<script src="/static/wiki.js" defer></script>'
+        if (is_layer or toc_rail) else ""
+    )
+    return HTMLResponse(shell(
+        tab, body, body_class="page-wiki", extra_body=extra_body,
+    ))
+
+
+# Short human descriptors for the orienting pages on the wiki home portal.
+_START_DESC = {
+    "/wiki/overview": "What AFFINE is, and what this wiki is for.",
+    "/wiki/cohort-portrait": "The cohort as a cohort — clusters, geography, the shape of the group.",
+    "/wiki/tree": "The whole alignment concept tree, grouped by branch.",
+    "/wiki/pods": "Working pods and the three cross-cutting meta-pods.",
+}
+
+
+def _wiki_home() -> HTMLResponse:
+    """A curated, human-facing front door for /wiki.
+
+    The flat catalogue at wiki/index.md is written for the interviewer (fast
+    retrieval); it stays the canonical machine index and is what tools.py reads.
+    Humans get this designed portal instead."""
+    start_cards = []
+    for label, href, _ in _WIKI_START:
+        if href.rstrip("/") in ("/wiki", ""):
+            continue  # skip "The index" — this page replaces it for humans
+        desc = _START_DESC.get(href, "")
+        start_cards.append(
+            f'<a class="home-card" href="{href}">'
+            f'<span class="home-card-h">{html.escape(label)}</span>'
+            f'<span class="home-card-d">{html.escape(desc)}</span></a>'
+        )
+
+    layer_cards = []
+    for label, href, count in _WIKI_LAYERS:
+        slug = href.strip("/").split("/")[-1]
+        blurb = _LAYER_BLURB.get(slug, "")
+        cnt = f'<span class="home-card-n">{html.escape(count)}</span>' if count else ""
+        layer_cards.append(
+            f'<a class="home-card" href="{href}">'
+            f'<span class="home-card-h">{html.escape(label)}{cnt}</span>'
+            f'<span class="home-card-d">{html.escape(blurb)}</span></a>'
+        )
+
+    content = f"""
+<p class="home-lede">A living, citation-grounded map of the AFFINE 2026
+seminar — the alignment concept tree, the people, the talks, and the threads
+running between them. Every claim traces back to a raw source. Wander it
+below, or sit with the interviewer and let it pull the threads for you.</p>
+<div class="home-cta">
+  <a class="btn" href="/interview">Sit with the interviewer →</a>
+  <a class="btn btn-ghost" href="/wiki/overview">What is AFFINE? →</a>
+</div>
+
+<h2 class="home-h2">Start here</h2>
+<div class="home-grid">{''.join(start_cards)}</div>
+
+<h2 class="home-h2">Wander a layer</h2>
+<div class="home-grid">{''.join(layer_cards)}</div>
+
+<p class="home-foot">This is the human front door. The interviewer reads a
+flatter <a href="/wiki/index">machine catalogue</a> of every page — there if
+you want the raw list.</p>
+"""
+    body = _wiki_frame(
+        "index.md", "The AFFINE wiki", "The wiki", "", "", content,
+    )
+    return HTMLResponse(shell("AFFINE wiki", body, body_class="page-wiki"))
 
 
 @app.get("/wiki", response_class=HTMLResponse)
 def wiki_index():
-    return _wiki_view("index.md")
+    return _wiki_home()
 
 
 @app.get("/wiki/{page_path:path}", response_class=HTMLResponse)
